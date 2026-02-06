@@ -445,6 +445,16 @@ export default function App() {
     }
   }, [isCameraOn, startWebcam, stopWebcam]);
 
+  // Auto-capture before image when Edit tab is opened directly
+  useEffect(() => {
+    if (activeTab === 'edit' && !editBeforeImage) {
+      const img = captureBeforeImage();
+      if (img) {
+        setEditBeforeImage(img);
+      }
+    }
+  }, [activeTab, editBeforeImage, captureBeforeImage]);
+
   const canStartEditing = true;
 
   // Save current sketch strokes to disk
