@@ -5,6 +5,9 @@ interface PipelineViewProps {
   generationStatus: string;
   results: PipelineResults;
   onCancel: () => void;
+  onRunAnalysis: () => void;
+  onRunImageGen: () => void;
+  onRunOdysseyPrompt: () => void;
 }
 
 export function PipelineView({
@@ -12,6 +15,9 @@ export function PipelineView({
   generationStatus,
   results,
   onCancel,
+  onRunAnalysis,
+  onRunImageGen,
+  onRunOdysseyPrompt,
 }: PipelineViewProps) {
   const isGenerating = appState === 'GENERATING';
   const hasAnyResult =
@@ -51,6 +57,17 @@ export function PipelineView({
                   alt="Sketch"
                   className="pipeline-image"
                 />
+                {/* Button to run Claude analysis */}
+                {!results.imagePrompt && !isGenerating && (
+                  <button
+                    type="button"
+                    className="control-btn primary"
+                    style={{ marginTop: 12 }}
+                    onClick={onRunAnalysis}
+                  >
+                    Run Claude Analysis
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -62,6 +79,17 @@ export function PipelineView({
               <div className="step-content">
                 <h3>Claude Analysis</h3>
                 <div className="pipeline-text-card">{results.imagePrompt}</div>
+                {/* Button to generate image */}
+                {!results.imageDataUrl && !isGenerating && (
+                  <button
+                    type="button"
+                    className="control-btn primary"
+                    style={{ marginTop: 12 }}
+                    onClick={onRunImageGen}
+                  >
+                    Generate Image
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -77,6 +105,17 @@ export function PipelineView({
                   alt="Generated"
                   className="pipeline-image"
                 />
+                {/* Button to generate Odyssey prompt */}
+                {!results.odysseyPrompt && !isGenerating && (
+                  <button
+                    type="button"
+                    className="control-btn primary"
+                    style={{ marginTop: 12 }}
+                    onClick={onRunOdysseyPrompt}
+                  >
+                    Generate Odyssey Prompt
+                  </button>
+                )}
               </div>
             </div>
           )}

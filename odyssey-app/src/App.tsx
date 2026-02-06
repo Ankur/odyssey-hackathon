@@ -4,7 +4,12 @@ import { COLOR_HOVER_COOLDOWN_MS } from './constants';
 import { useHandTracking } from './hooks/useHandTracking';
 import { useDrawing } from './hooks/useDrawing';
 import { useOdysseyClient } from './hooks/useOdysseyClient';
-import { runPipeline } from './lib/pipeline';
+import {
+  runPipeline,
+  analyzeSketchAndGeneratePrompt,
+  generatePhotorealisticImage,
+  generateOdysseyPrompt,
+} from './lib/pipeline';
 import { analyzeEditChanges } from './lib/editPipeline';
 import { exportCanvasAsDataUrl } from './lib/canvasUtils';
 import { EDIT_SEED_IMAGE_DATA_URL } from './assets/editSeedImage';
@@ -377,6 +382,22 @@ export default function App() {
     }
   }, [setActiveTab]);
 
+  // Unload drawing to pipeline tab without running anything
+  const handleUnloadDrawing = useCallback(() => {
+    const d = drawingRef.current;
+    d.finalizeCurrentStroke();
+
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+
+    const allStrokes = d.getAllStrokes();
+    if (allStrokes.length === 0) return;
+
+    const sketchDataUrl = exportCanvasAsDataUrl(allStrokes, canvas.width, canvas.height);
+    setPipelineResults({ ...EMPTY_PIPELINE_RESULTS, sketchDataUrl });
+    setActiveTab('pipeline');
+  }, [setActiveTab]);
+
   const handleInteract = useCallback(
     async (prompt: string) => {
       try {
@@ -418,6 +439,56 @@ export default function App() {
     setGenerationStatus('');
     setActiveTab('webcam');
   }, []);
+
+  // Individual pipeline step handlers for manual triggering from PipelineView
+  const handleRunAnalysis = useCallback(async () => {
+    const sketchUrl = pipelineResults.sketchDataUrl;
+    if (!sketchUrl) return;
+    setGenerationStatus('Analyzing sketch with Claude...');
+    setAppState('GENERATING');
+    try {
+      const imagePrompt = await analyzeSketchAndGeneratePrompt(sketchUrl);
+      setPipelineResults((prev) => ({ ...prev, imagePrompt }));
+    } catch (err) {
+      alert(`Analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setGenerationStatus('');
+      setAppState('PAUSED');
+    }
+  }, [pipelineResults.sketchDataUrl]);
+
+  const handleRunImageGen = useCallback(async () => {
+    const sketchUrl = pipelineResults.sketchDataUrl;
+    const prompt = pipelineResults.imagePrompt;
+    if (!sketchUrl || !prompt) return;
+    setGenerationStatus('Generating photorealistic image...');
+    setAppState('GENERATING');
+    try {
+      const result = await generatePhotorealisticImage(sketchUrl, prompt);
+      setPipelineResults((prev) => ({ ...prev, imageDataUrl: result.dataUrl }));
+    } catch (err) {
+      alert(`Image generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setGenerationStatus('');
+      setAppState('PAUSED');
+    }
+  }, [pipelineResults.sketchDataUrl, pipelineResults.imagePrompt]);
+
+  const handleRunOdysseyPrompt = useCallback(async () => {
+    const prompt = pipelineResults.imagePrompt;
+    if (!prompt) return;
+    setGenerationStatus('Optimizing Odyssey prompt...');
+    setAppState('GENERATING');
+    try {
+      const odysseyPrompt = await generateOdysseyPrompt(prompt);
+      setPipelineResults((prev) => ({ ...prev, odysseyPrompt }));
+    } catch (err) {
+      alert(`Prompt generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setGenerationStatus('');
+      setAppState('PAUSED');
+    }
+  }, [pipelineResults.imagePrompt]);
 
   const handleEditAnalyze = useCallback(async (beforeUrl: string, afterUrl: string) => {
     setEditPrompt(null);
@@ -604,6 +675,7 @@ export default function App() {
             onUndo={drawing.undo}
             onSaveSketch={handleSaveSketch}
             onLoadSketch={handleLoadSketch}
+            onUnloadDrawing={handleUnloadDrawing}
             onStartEditing={handleStartEditing}
             canStartEditing={canStartEditing}
             onToggleCamera={handleToggleCamera}
@@ -618,6 +690,9 @@ export default function App() {
             generationStatus={generationStatus}
             results={pipelineResults}
             onCancel={handleCancelGeneration}
+            onRunAnalysis={handleRunAnalysis}
+            onRunImageGen={handleRunImageGen}
+            onRunOdysseyPrompt={handleRunOdysseyPrompt}
           />
         </div>
 
