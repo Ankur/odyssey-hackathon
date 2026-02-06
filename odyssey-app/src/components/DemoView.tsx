@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useHandTracking } from '../hooks/useHandTracking';
 import { useDrawing } from '../hooks/useDrawing';
 import { useOdysseyClient } from '../hooks/useOdysseyClient';
-import { runPipeline } from '../lib/pipeline';
+import { runPipeline, type PipelineProgress } from '../lib/pipeline';
 import { exportCanvasAsDataUrl, drawPulseAnimation } from '../lib/canvasUtils';
 import {
   getIndexTipPosition,
@@ -21,9 +21,10 @@ export type DemoPhase = 'draw' | 'generating' | 'streaming' | 'editing';
 interface DemoViewProps {
   isActive: boolean;
   onPhaseChange?: (phase: DemoPhase) => void;
+  onPipelineProgress?: (sketchDataUrl: string, progress: PipelineProgress) => void;
 }
 
-export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
+export function DemoView({ isActive, onPhaseChange, onPipelineProgress }: DemoViewProps) {
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const drawCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -317,7 +318,9 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
     generatingStartTimeRef.current = performance.now();
 
     try {
-      const result = await runPipeline(sketchDataUrl, setGenerationStatus);
+      const result = await runPipeline(sketchDataUrl, setGenerationStatus, (progress) => {
+        onPipelineProgress?.(sketchDataUrl, progress);
+      });
 
       setGenerationStatus('Connecting to Odyssey...');
       const mediaStream = await odyssey.connect();
@@ -335,7 +338,7 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
       setPhase('draw');
       setGenerationStatus('');
     }
-  }, [odyssey]);
+  }, [odyssey, onPipelineProgress]);
 
   // --- "Edit" click handler ---
   const handleEdit = useCallback(() => {
@@ -434,7 +437,9 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
       const afterImage = compositeCanvas.toDataURL('image/png');
 
       // Run the full NanoBanano pipeline on the edited composite
-      const result = await runPipeline(afterImage, setGenerationStatus);
+      const result = await runPipeline(afterImage, setGenerationStatus, (progress) => {
+        onPipelineProgress?.(afterImage, progress);
+      });
       console.log('[Demo] Re-imagine pipeline complete:', result.odysseyPrompt);
 
       // End current stream and start a new one with the rendered image
@@ -452,7 +457,7 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
     } finally {
       setIsReImagining(false);
     }
-  }, [beforeImage, odyssey, drawing]);
+  }, [beforeImage, odyssey, drawing, onPipelineProgress]);
 
   // --- "Cancel" edit handler ---
   const handleCancelEdit = useCallback(() => {
