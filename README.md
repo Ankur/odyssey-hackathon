@@ -1,6 +1,6 @@
 # Odyssey Hackathon
 
-Demo video: https://drive.google.com/file/d/1UgWvuha_eW7t8QQLFXiCSTuTH9y4ZNGb/view?usp=sharing
+Demo video (in the beginning the audio cuts off but I say "you're watching Disney Channel"): https://drive.google.com/file/d/1UgWvuha_eW7t8QQLFXiCSTuTH9y4ZNGb/view?usp=sharing
 
 An experimental playground that turns hand-drawn sketches into live Odyssey-2 Pro video streams. The app guides you from gestural drawing on a webcam feed, through prompt engineering, to photorealistic generations and interactive streaming.
 
