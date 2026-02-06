@@ -34,7 +34,7 @@ export function useOdysseyClient() {
     async (prompt: string, image: File) => {
       const client = getClient();
       setStatus('Generating...');
-      await client.startStream({ prompt, image });
+      await client.startStream({ prompt, image, portrait: false });
       setIsStreaming(true);
       setStatus('Streaming');
     },

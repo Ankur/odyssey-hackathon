@@ -90,7 +90,7 @@
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  background: #0a0a0a;
+  background: #3a3a3a;
   padding: 60px 24px 24px;
 }
 
@@ -166,6 +166,7 @@
   max-width: 640px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #e0e0e0;
 }
 
 .pipeline-text-card {
