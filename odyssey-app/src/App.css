@@ -583,3 +583,91 @@
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* ===== Edit View ===== */
+
+.edit-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #0a0a0a;
+  padding: 60px 24px 24px 80px;
+  box-sizing: border-box;
+}
+
+.edit-content {
+  display: flex;
+  gap: 24px;
+  height: 100%;
+  align-items: flex-start;
+}
+
+.edit-canvas-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-canvas {
+  width: 100%;
+  aspect-ratio: 1280 / 704;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  cursor: crosshair;
+  background: #111;
+}
+
+.edit-canvas-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.edit-output-container {
+  width: 350px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.edit-output-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 10px 0;
+}
+
+.edit-output-box {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 120px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.edit-output-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.edit-output-placeholder {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.edit-output-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}

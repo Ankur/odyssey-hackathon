@@ -1,11 +1,24 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { AppState, TabId, PipelineResults } from './types';
-import { COLOR_HOVER_COOLDOWN_MS } from './constants';
+import { COLOR_HOVER_COOLDOWN_MS, EXPORT_WIDTH, EXPORT_HEIGHT } from './constants';
 import { useHandTracking } from './hooks/useHandTracking';
 import { useDrawing } from './hooks/useDrawing';
 import { useOdysseyClient } from './hooks/useOdysseyClient';
 import { runPipeline } from './lib/pipeline';
+import { analyzeEditChanges } from './lib/editPipeline';
 import { exportCanvasAsDataUrl } from './lib/canvasUtils';
+import { drawDummyScene } from './lib/dummyScene';
+
+function generateEditSeedImage(): string | null {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = EXPORT_WIDTH;
+  canvas.height = EXPORT_HEIGHT;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  drawDummyScene(ctx, EXPORT_WIDTH, EXPORT_HEIGHT);
+  return canvas.toDataURL('image/png');
+}
 import {
   getIndexTipPosition,
   isIndexFingerExtended,
@@ -18,6 +31,7 @@ import { StatusBar } from './components/StatusBar';
 import { TabBar } from './components/TabBar';
 import { PipelineView } from './components/PipelineView';
 import { StreamingControls } from './components/StreamingControls';
+import { EditView } from './components/EditView';
 import './App.css';
 
 const EMPTY_PIPELINE_RESULTS: PipelineResults = {
@@ -51,6 +65,15 @@ export default function App() {
   // Generation status for the pipeline steps
   const [generationStatus, setGenerationStatus] = useState('');
 
+  // Edit tab state
+  const [editPrompt, setEditPrompt] = useState<string | null>(null);
+  const [isAnalyzingEdit, setIsAnalyzingEdit] = useState(false);
+  const [editBeforeImage, setEditBeforeImage] = useState<string | null>(() => generateEditSeedImage());
+
+  // Webcam state
+  const webcamStreamRef = useRef<MediaStream | null>(null);
+  const [isCameraOn, setIsCameraOn] = useState(true);
+
   // Hooks
   const handTracking = useHandTracking(videoRef);
   const drawing = useDrawing(drawCanvasRef);
@@ -60,31 +83,45 @@ export default function App() {
   const drawingRef = useRef(drawing);
   drawingRef.current = drawing;
 
+  const stopWebcam = useCallback(() => {
+    const stream = webcamStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      webcamStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraOn(false);
+  }, []);
+
+  const startWebcam = useCallback(async () => {
+    if (webcamStreamRef.current) {
+      setIsCameraOn(true);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      webcamStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setIsCameraOn(true);
+    } catch (err) {
+      console.error('Failed to access webcam:', err);
+      alert('Unable to access the camera. Please check permissions and try again.');
+    }
+  }, []);
+
   // Start webcam
   useEffect(() => {
-    let stream: MediaStream | null = null;
-
-    async function startWebcam() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (err) {
-        console.error('Failed to access webcam:', err);
-      }
-    }
-
     startWebcam();
-
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
-      }
+      stopWebcam();
     };
-  }, []);
+  }, [startWebcam, stopWebcam]);
 
   // Sync canvas dimensions when video metadata loads
   const handleVideoReady = useCallback(() => {
@@ -102,6 +139,7 @@ export default function App() {
       landmarkCanvasRef.current.width = w;
       landmarkCanvasRef.current.height = h;
     }
+
   }, []);
 
   // Start hand detection when ready
@@ -348,6 +386,8 @@ export default function App() {
     setPipelineResults(EMPTY_PIPELINE_RESULTS);
     setAppState('IDLE');
     setActiveTab('webcam');
+    setEditBeforeImage(null);
+    setEditPrompt(null);
   }, [odyssey, drawing]);
 
   const handleCancelGeneration = useCallback(() => {
@@ -355,6 +395,39 @@ export default function App() {
     setGenerationStatus('');
     setActiveTab('webcam');
   }, []);
+
+  const handleEditAnalyze = useCallback(async (beforeUrl: string, afterUrl: string) => {
+    setEditPrompt(null);
+    setIsAnalyzingEdit(true);
+    try {
+      const prompt = await analyzeEditChanges(beforeUrl, afterUrl);
+      setEditPrompt(prompt);
+    } catch (err) {
+      alert(`Analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsAnalyzingEdit(false);
+    }
+  }, []);
+
+  const handleStartEditing = useCallback(() => {
+    const baseImage = generateEditSeedImage();
+    if (!baseImage) {
+      alert('Unable to prepare the edit seed yet. Try again in a moment.');
+      return;
+    }
+    setEditBeforeImage(baseImage);
+    setEditPrompt(null);
+    setIsAnalyzingEdit(false);
+    setActiveTab('edit');
+  }, [setActiveTab]);
+
+  const handleToggleCamera = useCallback(() => {
+    if (isCameraOn) {
+      stopWebcam();
+    } else {
+      startWebcam();
+    }
+  }, [isCameraOn, startWebcam, stopWebcam]);
 
   // Save current sketch strokes to disk
   const handleSaveSketch = useCallback(async () => {
@@ -446,6 +519,10 @@ export default function App() {
             onUndo={drawing.undo}
             onSaveSketch={handleSaveSketch}
             onLoadSketch={handleLoadSketch}
+            onStartEditing={handleStartEditing}
+            canStartEditing={true}
+            onToggleCamera={handleToggleCamera}
+            isCameraOn={isCameraOn}
           />
         </div>
 
@@ -488,6 +565,17 @@ export default function App() {
               />
             )}
           </div>
+        </div>
+
+        {/* Edit tab */}
+        <div className="tab-pane" style={{ display: activeTab === 'edit' ? 'block' : 'none' }}>
+          <EditView
+            interactPrompt={editPrompt}
+            isAnalyzing={isAnalyzingEdit}
+            beforeImage={editBeforeImage}
+            onAnalyze={handleEditAnalyze}
+            onPromptClear={() => setEditPrompt(null)}
+          />
         </div>
       </div>
     </div>
