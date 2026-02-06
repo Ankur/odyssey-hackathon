@@ -632,10 +632,9 @@ export default function App() {
         }));
       });
 
-      // End current stream and start a new one with the rendered image
-      setGenerationStatus('Restarting world stream...');
-      await odyssey.endStream();
-      await odyssey.startStream(result.odysseyPrompt, result.image);
+      // Send the generated prompt as an interact command to the running stream
+      setGenerationStatus('Sending interaction...');
+      await odyssey.interact(result.odysseyPrompt);
 
       odysseyEditDrawing.clear();
       setIsOdysseyEditing(false);
