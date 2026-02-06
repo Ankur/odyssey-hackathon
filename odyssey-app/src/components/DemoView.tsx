@@ -4,7 +4,7 @@ import { useDrawing } from '../hooks/useDrawing';
 import { useOdysseyClient } from '../hooks/useOdysseyClient';
 import { runPipeline } from '../lib/pipeline';
 import { analyzeEditChanges } from '../lib/editPipeline';
-import { exportCanvasAsDataUrl } from '../lib/canvasUtils';
+import { exportCanvasAsDataUrl, drawPulseAnimation } from '../lib/canvasUtils';
 import {
   getIndexTipPosition,
   isIndexFingerExtended,
@@ -35,6 +35,7 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
   const lastColorHoverTimeRef = useRef<number>(0);
   const sparkleRef = useRef(new SparkleSystem());
   const webcamStreamRef = useRef<MediaStream | null>(null);
+  const generatingStartTimeRef = useRef<number>(0);
 
   // Phase state machine: draw → generating → streaming ⇄ editing
   const [phase, setPhase] = useState<DemoPhase>('draw');
@@ -241,6 +242,12 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
           sparkle.update();
           sparkle.draw(ctx, d.color);
         }
+      } else if (lmCanvas && currentPhase === 'generating') {
+        const ctx = lmCanvas.getContext('2d');
+        if (ctx) {
+          const allStrokes = d.getAllStrokes();
+          drawPulseAnimation(ctx, allStrokes, generatingStartTimeRef.current);
+        }
       } else {
         sparkle.update();
         if (lmCanvas) {
@@ -309,6 +316,7 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
     setPhase('generating');
     setIsDrawingActive(false);
     setGenerationStatus('Starting pipeline...');
+    generatingStartTimeRef.current = performance.now();
 
     try {
       const result = await runPipeline(sketchDataUrl, setGenerationStatus);
@@ -470,8 +478,8 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
         </>
       )}
 
-      {/* Draw phase: webcam + canvas */}
-      {phase === 'draw' && (
+      {/* Draw phase + generating phase: webcam + canvas (keep mounted so pulse animation can render) */}
+      {(phase === 'draw' || phase === 'generating') && (
         <>
           <WebcamCanvas
             videoRef={videoRef}
@@ -481,30 +489,32 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
             error={handTracking.error}
           />
 
-          <div className="demo-bottom-bar">
-            <p className="demo-status-hint">
-              {!isDrawingActive ? 'Press SPACE to draw' : 'Drawing — press SPACE to pause'}
-            </p>
-            <div className="demo-btn-row">
-              {hasStrokes && (
-                <>
-                  <button className="control-btn" onClick={drawing.undo}>Undo</button>
-                  <button className="control-btn" onClick={drawing.clear}>Clear</button>
-                </>
-              )}
-              <button
-                className="control-btn primary demo-imagine-btn"
-                onClick={handleImagine}
-                disabled={!hasStrokes}
-              >
-                Imagine
-              </button>
+          {phase === 'draw' && (
+            <div className="demo-bottom-bar">
+              <p className="demo-status-hint">
+                {!isDrawingActive ? 'Press SPACE to draw' : 'Drawing — press SPACE to pause'}
+              </p>
+              <div className="demo-btn-row">
+                {hasStrokes && (
+                  <>
+                    <button className="control-btn" onClick={drawing.undo}>Undo</button>
+                    <button className="control-btn" onClick={drawing.clear}>Clear</button>
+                  </>
+                )}
+                <button
+                  className="control-btn primary demo-imagine-btn"
+                  onClick={handleImagine}
+                  disabled={!hasStrokes}
+                >
+                  Imagine
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
-      {/* ===== GENERATING PHASE ===== */}
+      {/* ===== GENERATING PHASE: overlay status on top of pulse animation ===== */}
       {phase === 'generating' && (
         <GeneratingOverlay
           generationStatus={generationStatus}
@@ -513,8 +523,8 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
       )}
 
       {/* ===== STREAMING PHASE ===== */}
-      {/* Odyssey video stays mounted across streaming ⇄ editing to preserve stream */}
-      {(phase === 'streaming' || phase === 'editing') && (
+      {/* Odyssey video stays mounted from generating onwards so srcObject can be set before streaming phase */}
+      {(phase === 'generating' || phase === 'streaming' || phase === 'editing') && (
         <div className="demo-streaming" style={{ display: phase === 'streaming' ? undefined : 'none' }}>
           <div className="odyssey-frame-container">
             <video

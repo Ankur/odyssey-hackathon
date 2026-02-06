@@ -57,7 +57,7 @@ export default function App() {
   appStateRef.current = appState;
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<TabId>('webcam');
+  const [activeTab, setActiveTab] = useState<TabId>('demo');
 
   // Pipeline results for progressive display
   const [pipelineResults, setPipelineResults] = useState<PipelineResults>(EMPTY_PIPELINE_RESULTS);
