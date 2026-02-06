@@ -6,7 +6,7 @@ import { useDrawing } from './hooks/useDrawing';
 import { useOdysseyClient } from './hooks/useOdysseyClient';
 import { runPipeline } from './lib/pipeline';
 import { analyzeEditChanges } from './lib/editPipeline';
-import { exportCanvasAsDataUrl } from './lib/canvasUtils';
+import { exportCanvasAsDataUrl, drawPulseAnimation } from './lib/canvasUtils';
 import { EDIT_SEED_IMAGE_DATA_URL } from './assets/editSeedImage';
 import {
   getIndexTipPosition,
@@ -21,6 +21,8 @@ import { TabBar } from './components/TabBar';
 import { PipelineView } from './components/PipelineView';
 import { StreamingControls } from './components/StreamingControls';
 import { EditView } from './components/EditView';
+import frameImage from './assets/frame.png';
+import frameMask from './assets/frame-mask.png';
 import './App.css';
 
 const EMPTY_PIPELINE_RESULTS: PipelineResults = {
@@ -39,6 +41,7 @@ export default function App() {
   const drawLoopRef = useRef<number>(0);
   const lastColorHoverTimeRef = useRef<number>(0);
   const sparkleRef = useRef(new SparkleSystem());
+  const generatingStartTimeRef = useRef<number>(0);
 
   // App state
   const [appState, setAppState] = useState<AppState>('IDLE');
@@ -234,9 +237,20 @@ export default function App() {
           sparkle.update();
           sparkle.draw(ctx, d.color);
         }
+      } else if (lmCanvas && state === 'GENERATING') {
+        // Rainbow pulse animation on the draw tab during generation
+        const ctx = lmCanvas.getContext('2d');
+        if (ctx) {
+          const allStrokes = d.getAllStrokes();
+          drawPulseAnimation(ctx, allStrokes, generatingStartTimeRef.current);
+        }
       } else {
-        // Not showing cursor — clear particles
+        // Not showing cursor — clear landmark canvas and particles
         sparkle.update();
+        if (lmCanvas) {
+          const ctx = lmCanvas.getContext('2d');
+          if (ctx) ctx.clearRect(0, 0, lmCanvas.width, lmCanvas.height);
+        }
       }
 
       drawLoopRef.current = requestAnimationFrame(loop);
@@ -294,7 +308,7 @@ export default function App() {
 
     // Reset pipeline results and store sketch immediately
     setPipelineResults({ ...EMPTY_PIPELINE_RESULTS, sketchDataUrl });
-    setActiveTab('pipeline');
+    generatingStartTimeRef.current = performance.now();
     setAppState('GENERATING');
     setGenerationStatus('Starting pipeline...');
 
@@ -565,23 +579,32 @@ export default function App() {
         </div>
 
         {/* Odyssey tab */}
-        <div className="tab-pane" style={{ display: activeTab === 'odyssey' ? 'block' : 'none' }}>
+        <div className="tab-pane odyssey-tab" style={{ display: activeTab === 'odyssey' ? 'block' : 'none' }}>
           <div className="odyssey-pane-content">
-            {/* Odyssey stream video */}
-            <video
-              ref={odysseyVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="odyssey-video"
-              style={{ display: showOdysseyStream ? 'block' : 'none' }}
-            />
+            <div className="odyssey-frame-container">
+              {/* Video masked to frame interior */}
+              <video
+                ref={odysseyVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="odyssey-video"
+                style={{
+                  display: showOdysseyStream ? 'block' : 'none',
+                  maskImage: `url(${frameMask})`,
+                  WebkitMaskImage: `url(${frameMask})`,
+                }}
+              />
 
-            {!showOdysseyStream && (
-              <div className="odyssey-placeholder">
-                <p>No active stream. Draw something and run the pipeline first.</p>
-              </div>
-            )}
+              {!showOdysseyStream && (
+                <div className="odyssey-placeholder">
+                  <p>No active stream. Draw something and run the pipeline first.</p>
+                </div>
+              )}
+
+              {/* Frame overlay */}
+              <img src={frameImage} className="odyssey-frame-overlay" alt="" />
+            </div>
 
             {/* Streaming controls */}
             {appState === 'STREAMING' && (
