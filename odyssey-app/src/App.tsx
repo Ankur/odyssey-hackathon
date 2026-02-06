@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import type { AppState } from './types';
+import type { AppState, TabId, PipelineResults } from './types';
 import { COLOR_HOVER_COOLDOWN_MS } from './constants';
 import { useHandTracking } from './hooks/useHandTracking';
 import { useDrawing } from './hooks/useDrawing';
@@ -15,9 +15,17 @@ import { SparkleSystem } from './lib/sparkle';
 import { WebcamCanvas } from './components/WebcamCanvas';
 import { ColorPalette } from './components/ColorPalette';
 import { StatusBar } from './components/StatusBar';
-import { GeneratingOverlay } from './components/GeneratingOverlay';
+import { TabBar } from './components/TabBar';
+import { PipelineView } from './components/PipelineView';
 import { StreamingControls } from './components/StreamingControls';
 import './App.css';
+
+const EMPTY_PIPELINE_RESULTS: PipelineResults = {
+  sketchDataUrl: null,
+  imagePrompt: null,
+  imageDataUrl: null,
+  odysseyPrompt: null,
+};
 
 export default function App() {
   // Refs
@@ -33,6 +41,12 @@ export default function App() {
   const [appState, setAppState] = useState<AppState>('IDLE');
   const appStateRef = useRef<AppState>('IDLE');
   appStateRef.current = appState;
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabId>('webcam');
+
+  // Pipeline results for progressive display
+  const [pipelineResults, setPipelineResults] = useState<PipelineResults>(EMPTY_PIPELINE_RESULTS);
 
   // Generation status for the pipeline steps
   const [generationStatus, setGenerationStatus] = useState('');
@@ -252,12 +266,22 @@ export default function App() {
 
     const sketchDataUrl = exportCanvasAsDataUrl(allStrokes, canvas.width, canvas.height);
 
+    // Reset pipeline results and store sketch immediately
+    setPipelineResults({ ...EMPTY_PIPELINE_RESULTS, sketchDataUrl });
+    setActiveTab('pipeline');
     setAppState('GENERATING');
     setGenerationStatus('Starting pipeline...');
 
     try {
-      // Run the Claude + NanoBanana pipeline
-      const result = await runPipeline(sketchDataUrl, setGenerationStatus);
+      // Run the Claude + NanoBanana pipeline with progress callback
+      const result = await runPipeline(sketchDataUrl, setGenerationStatus, (progress) => {
+        setPipelineResults((prev) => ({
+          ...prev,
+          ...(progress.imagePrompt !== undefined && { imagePrompt: progress.imagePrompt }),
+          ...(progress.imageDataUrl !== undefined && { imageDataUrl: progress.imageDataUrl }),
+          ...(progress.odysseyPrompt !== undefined && { odysseyPrompt: progress.odysseyPrompt }),
+        }));
+      });
 
       // Connect to Odyssey and stream the photorealistic image
       setGenerationStatus('Connecting to Odyssey...');
@@ -270,6 +294,7 @@ export default function App() {
       await odyssey.startStream(result.odysseyPrompt, result.image);
       setAppState('STREAMING');
       setGenerationStatus('');
+      setActiveTab('odyssey');
 
       // Save session artifacts in the background
       fetch('/api/save-session', {
@@ -287,6 +312,7 @@ export default function App() {
       alert(`Generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setAppState('PAUSED');
       setGenerationStatus('');
+      setActiveTab('webcam');
     }
   }, [odyssey]);
 
@@ -319,12 +345,15 @@ export default function App() {
     }
     odyssey.disconnect();
     drawing.clear();
+    setPipelineResults(EMPTY_PIPELINE_RESULTS);
     setAppState('IDLE');
+    setActiveTab('webcam');
   }, [odyssey, drawing]);
 
   const handleCancelGeneration = useCallback(() => {
     setAppState('PAUSED');
     setGenerationStatus('');
+    setActiveTab('webcam');
   }, []);
 
   // Save current sketch strokes to disk
@@ -372,68 +401,95 @@ export default function App() {
     }
   }, []);
 
-  const showWebcam = appState !== 'STREAMING';
-  const showOdyssey = appState === 'STREAMING';
   const inDrawMode = appState === 'IDLE' || appState === 'DRAWING' || appState === 'PAUSED';
+  const showOdysseyStream = appState === 'STREAMING';
 
   return (
     <div className="app">
-      {/* Color palette */}
-      {inDrawMode && (
-        <ColorPalette
-          selectedColor={drawing.color}
-          onSelectColor={drawing.setColor}
-          brushSize={drawing.brushSize}
-          onBrushSizeChange={drawing.setBrushSize}
-        />
-      )}
+      {/* Tab bar */}
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} appState={appState} />
 
-      {/* Done button — top right */}
-      {(appState === 'DRAWING' || appState === 'PAUSED') && (
-        <button className="done-btn" onClick={handleDone}>
-          Done
-        </button>
-      )}
+      <div className="tab-content">
+        {/* Draw tab */}
+        <div className="tab-pane" style={{ display: activeTab === 'webcam' ? 'block' : 'none' }}>
+          {/* Color palette */}
+          {inDrawMode && (
+            <ColorPalette
+              selectedColor={drawing.color}
+              onSelectColor={drawing.setColor}
+              brushSize={drawing.brushSize}
+              onBrushSizeChange={drawing.setBrushSize}
+            />
+          )}
 
-      {/* Main canvas area */}
-      <WebcamCanvas
-        videoRef={videoRef}
-        drawCanvasRef={drawCanvasRef}
-        landmarkCanvasRef={landmarkCanvasRef}
-        odysseyVideoRef={odysseyVideoRef}
-        showWebcam={showWebcam}
-        showOdyssey={showOdyssey}
-        onVideoReady={handleVideoReady}
-        error={handTracking.error}
-      />
+          {/* Done button — top right */}
+          {(appState === 'DRAWING' || appState === 'PAUSED') && (
+            <button className="done-btn" onClick={handleDone}>
+              Done
+            </button>
+          )}
 
-      {/* Generation status overlay */}
-      {appState === 'GENERATING' && (
-        <GeneratingOverlay
-          generationStatus={generationStatus}
-          onCancel={handleCancelGeneration}
-        />
-      )}
+          {/* Webcam + drawing canvas */}
+          <WebcamCanvas
+            videoRef={videoRef}
+            drawCanvasRef={drawCanvasRef}
+            landmarkCanvasRef={landmarkCanvasRef}
+            onVideoReady={handleVideoReady}
+            error={handTracking.error}
+          />
 
-      {/* Streaming controls */}
-      {appState === 'STREAMING' && (
-        <StreamingControls
-          onInteract={handleInteract}
-          onEndStream={handleEndStream}
-          onNewDrawing={handleNewDrawing}
-          odysseyStatus={odyssey.status}
-        />
-      )}
+          {/* Status bar */}
+          <StatusBar
+            appState={appState}
+            handTrackingReady={handTracking.isReady}
+            onClear={drawing.clear}
+            onUndo={drawing.undo}
+            onSaveSketch={handleSaveSketch}
+            onLoadSketch={handleLoadSketch}
+          />
+        </div>
 
-      {/* Status bar */}
-      <StatusBar
-        appState={appState}
-        handTrackingReady={handTracking.isReady}
-        onClear={drawing.clear}
-        onUndo={drawing.undo}
-        onSaveSketch={handleSaveSketch}
-        onLoadSketch={handleLoadSketch}
-      />
+        {/* Pipeline tab */}
+        <div className="tab-pane" style={{ display: activeTab === 'pipeline' ? 'block' : 'none' }}>
+          <PipelineView
+            appState={appState}
+            generationStatus={generationStatus}
+            results={pipelineResults}
+            onCancel={handleCancelGeneration}
+          />
+        </div>
+
+        {/* Odyssey tab */}
+        <div className="tab-pane" style={{ display: activeTab === 'odyssey' ? 'block' : 'none' }}>
+          <div className="odyssey-pane-content">
+            {/* Odyssey stream video */}
+            <video
+              ref={odysseyVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="odyssey-video"
+              style={{ display: showOdysseyStream ? 'block' : 'none' }}
+            />
+
+            {!showOdysseyStream && (
+              <div className="odyssey-placeholder">
+                <p>No active stream. Draw something and run the pipeline first.</p>
+              </div>
+            )}
+
+            {/* Streaming controls */}
+            {appState === 'STREAMING' && (
+              <StreamingControls
+                onInteract={handleInteract}
+                onEndStream={handleEndStream}
+                onNewDrawing={handleNewDrawing}
+                odysseyStatus={odyssey.status}
+              />
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

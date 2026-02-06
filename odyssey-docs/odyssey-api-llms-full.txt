@@ -1,0 +1,5071 @@
+# API Quick Start
+Source: https://documentation.api.odyssey.ml/api-quick-start
+
+Integrate Odyssey-2 Pro into your application in 5 minutes.
+
+## Create a developer account & get an API key
+
+Sign up and receive an API key at [developer.odyssey.ml](https://developer.odyssey.ml/dashboard).
+
+## Install
+
+<CodeGroup>
+  ```bash npm theme={null}
+  npm install @odysseyml/odyssey
+  ```
+
+  ```bash yarn theme={null}
+  yarn add @odysseyml/odyssey
+  ```
+
+  ```bash pnpm theme={null}
+  pnpm add @odysseyml/odyssey
+  ```
+</CodeGroup>
+
+<Info>
+  npm package version `"@odysseyml/odyssey": "^1.0.0" required`
+</Info>
+
+### Image-to-Video Requirements
+
+For image-to-video generation:
+
+* **Max size**: 25MB
+* **Supported formats**: JPEG, PNG, WebP, GIF, BMP, HEIC, HEIF, AVIF
+* **Resolution**: Images are automatically resized to 1280x704 (landscape) or 704x1280 (portrait)
+
+## HTML
+
+For standalone HTML files without a bundler, import directly from a CDN:
+
+<CodeGroup>
+  ```html Text-to-Video theme={null}
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <style>
+      body { font-family: system-ui; max-width: 600px; margin: 2rem auto; }
+      video { width: 100%; background: #000; }
+      input[type="text"] { flex: 1; padding: 0.5rem; }
+      button { padding: 0.5rem 1rem; }
+      .row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <video id="video" autoplay playsinline muted></video>
+    <p id="status">Loading...</p>
+    <div class="row">
+      <input id="prompt" type="text" placeholder="Enter prompt..." />
+      <button id="send">Send</button>
+      <button id="end" disabled>End</button>
+    </div>
+    <script type="module">
+      import { Odyssey } from 'https://esm.sh/@odysseyml/odyssey';
+
+      const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+      const status = document.getElementById('status');
+      const prompt = document.getElementById('prompt');
+      const endBtn = document.getElementById('end');
+      let isStreaming = false;
+
+      window.addEventListener('beforeunload', () => client.disconnect());
+
+      status.textContent = 'Connecting...';
+      const mediaStream = await client.connect();
+      document.getElementById('video').srcObject = mediaStream;
+      status.textContent = 'Connected';
+
+      document.getElementById('send').onclick = async () => {
+        const text = prompt.value.trim();
+        if (!text) return;
+        prompt.value = '';
+
+        if (isStreaming) {
+          await client.interact({ prompt: text });
+        } else {
+          status.textContent = 'Starting...';
+          await client.startStream({ prompt: text });
+          isStreaming = true;
+          endBtn.disabled = false;
+          status.textContent = 'Streaming';
+        }
+      };
+
+      endBtn.onclick = async () => {
+        await client.endStream();
+        isStreaming = false;
+        endBtn.disabled = true;
+        status.textContent = 'Connected';
+      };
+    </script>
+  </body>
+  </html>
+  ```
+
+  ```html Image-to-Video theme={null}
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <style>
+      body { font-family: system-ui; max-width: 600px; margin: 2rem auto; }
+      video { width: 100%; background: #000; }
+      input[type="text"] { flex: 1; padding: 0.5rem; }
+      button { padding: 0.5rem 1rem; }
+      .row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <video id="video" autoplay playsinline muted></video>
+    <p id="status">Loading...</p>
+    <div class="row">
+      <input id="image" type="file" accept="image/*" />
+    </div>
+    <div class="row">
+      <input id="prompt" type="text" placeholder="Enter prompt..." />
+      <button id="send">Send</button>
+      <button id="end" disabled>End</button>
+    </div>
+    <script type="module">
+      import { Odyssey } from 'https://esm.sh/@odysseyml/odyssey';
+
+      const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+      const status = document.getElementById('status');
+      const prompt = document.getElementById('prompt');
+      const imageInput = document.getElementById('image');
+      const endBtn = document.getElementById('end');
+      let isStreaming = false;
+
+      window.addEventListener('beforeunload', () => client.disconnect());
+
+      status.textContent = 'Connecting...';
+      const mediaStream = await client.connect();
+      document.getElementById('video').srcObject = mediaStream;
+      status.textContent = 'Connected';
+
+      document.getElementById('send').onclick = async () => {
+        const text = prompt.value.trim();
+        prompt.value = '';
+
+        if (isStreaming) {
+          await client.interact({ prompt: text });
+        } else {
+          const image = imageInput.files[0]; // Get selected image
+          status.textContent = 'Starting...';
+          await client.startStream({ prompt: text, image });
+          isStreaming = true;
+          endBtn.disabled = false;
+          status.textContent = 'Streaming';
+        }
+      };
+
+      endBtn.onclick = async () => {
+        await client.endStream();
+        isStreaming = false;
+        endBtn.disabled = true;
+        status.textContent = 'Connected';
+      };
+    </script>
+  </body>
+  </html>
+  ```
+</CodeGroup>
+
+<AccordionGroup>
+  <Accordion title="Callback Style">
+    <CodeGroup>
+      ```html Text-to-Video theme={null}
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: system-ui; max-width: 600px; margin: 2rem auto; }
+          video { width: 100%; background: #000; }
+          input[type="text"] { flex: 1; padding: 0.5rem; }
+          button { padding: 0.5rem 1rem; }
+          .row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+        </style>
+      </head>
+      <body>
+        <video id="video" autoplay playsinline muted></video>
+        <p id="status">Disconnected</p>
+        <div class="row">
+          <button id="connect">Connect</button>
+          <input id="prompt" type="text" placeholder="Enter prompt..." disabled />
+          <button id="send" disabled>Send</button>
+          <button id="end" disabled>End</button>
+        </div>
+        <script type="module">
+          import { Odyssey } from 'https://esm.sh/@odysseyml/odyssey';
+
+          const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+          const status = document.getElementById('status');
+          const prompt = document.getElementById('prompt');
+          const sendBtn = document.getElementById('send');
+          const endBtn = document.getElementById('end');
+          let isStreaming = false;
+
+          window.addEventListener('beforeunload', () => client.disconnect());
+
+          document.getElementById('connect').onclick = () => {
+            status.textContent = 'Connecting...';
+            client.connect({
+              onConnected: (mediaStream) => {
+                document.getElementById('video').srcObject = mediaStream;
+                prompt.disabled = false;
+                sendBtn.disabled = false;
+                status.textContent = 'Connected';
+              },
+              onStreamStarted: () => {
+                isStreaming = true;
+                endBtn.disabled = false;
+                status.textContent = 'Streaming';
+              },
+              onStreamEnded: () => {
+                isStreaming = false;
+                endBtn.disabled = true;
+                status.textContent = 'Connected';
+              },
+              onError: (error) => console.error('Error:', error.message),
+            });
+          };
+
+          sendBtn.onclick = () => {
+            const text = prompt.value.trim();
+            if (!text) return;
+            prompt.value = '';
+            isStreaming ? client.interact({ prompt: text }) : client.startStream({ prompt: text });
+          };
+
+          endBtn.onclick = () => client.endStream();
+        </script>
+      </body>
+      </html>
+      ```
+
+      ```html Image-to-Video theme={null}
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: system-ui; max-width: 600px; margin: 2rem auto; }
+          video { width: 100%; background: #000; }
+          input[type="text"] { flex: 1; padding: 0.5rem; }
+          button { padding: 0.5rem 1rem; }
+          .row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+        </style>
+      </head>
+      <body>
+        <video id="video" autoplay playsinline muted></video>
+        <p id="status">Disconnected</p>
+        <div class="row">
+          <input id="image" type="file" accept="image/*" />
+        </div>
+        <div class="row">
+          <button id="connect">Connect</button>
+          <input id="prompt" type="text" placeholder="Enter prompt..." disabled />
+          <button id="send" disabled>Send</button>
+          <button id="end" disabled>End</button>
+        </div>
+        <script type="module">
+          import { Odyssey } from 'https://esm.sh/@odysseyml/odyssey';
+
+          const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+          const status = document.getElementById('status');
+          const prompt = document.getElementById('prompt');
+          const imageInput = document.getElementById('image');
+          const sendBtn = document.getElementById('send');
+          const endBtn = document.getElementById('end');
+          let isStreaming = false;
+
+          window.addEventListener('beforeunload', () => client.disconnect());
+
+          document.getElementById('connect').onclick = () => {
+            status.textContent = 'Connecting...';
+            client.connect({
+              onConnected: (mediaStream) => {
+                document.getElementById('video').srcObject = mediaStream;
+                prompt.disabled = false;
+                sendBtn.disabled = false;
+                status.textContent = 'Connected';
+              },
+              onStreamStarted: () => {
+                isStreaming = true;
+                endBtn.disabled = false;
+                status.textContent = 'Streaming';
+              },
+              onStreamEnded: () => {
+                isStreaming = false;
+                endBtn.disabled = true;
+                status.textContent = 'Connected';
+              },
+              onError: (error) => console.error('Error:', error.message),
+            });
+          };
+
+          sendBtn.onclick = () => {
+            const text = prompt.value.trim();
+            prompt.value = '';
+            if (isStreaming) {
+              client.interact({ prompt: text });
+            } else {
+              const image = imageInput.files[0];
+              client.startStream({ prompt: text, image });
+            }
+          };
+
+          endBtn.onclick = () => client.endStream();
+        </script>
+      </body>
+      </html>
+      ```
+    </CodeGroup>
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  Always ensure `disconnect()` is called when done (via page unload handlers or component cleanup). Stale connections count towards your concurrent session limit (max 1), which will block new connections until they time out. If `disconnect()` is not called, connections are automatically cleared after 40 seconds on the server side.
+</Warning>
+
+## JavaScript
+
+<CodeGroup>
+  ```typescript Text-to-Video theme={null}
+  import { Odyssey } from '@odysseyml/odyssey';
+
+  const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+  const mediaStream = await client.connect();
+  document.querySelector('video').srcObject = mediaStream;
+
+  await client.startStream({ prompt: 'A cat' });
+  await client.interact({ prompt: 'Pet the cat' });
+  await client.endStream();
+  client.disconnect();
+  ```
+
+  ```typescript Image-to-Video theme={null}
+  import { Odyssey } from '@odysseyml/odyssey';
+
+  const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+  const mediaStream = await client.connect();
+  document.querySelector('video').srcObject = mediaStream;
+
+  // Get image from file input
+  const imageFile = document.querySelector('input[type="file"]').files[0];
+
+  await client.startStream({ prompt: 'A cat', image: imageFile });
+  await client.interact({ prompt: 'Pet the cat' });
+  await client.endStream();
+  client.disconnect();
+  ```
+</CodeGroup>
+
+<AccordionGroup>
+  <Accordion title="Callback Style">
+    <CodeGroup>
+      ```typescript Text-to-Video theme={null}
+      import { Odyssey } from '@odysseyml/odyssey';
+
+      const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+      client.connect({
+        onConnected: (mediaStream) => {
+          document.querySelector('video').srcObject = mediaStream;
+          client.startStream({ prompt: 'A cat' });
+        },
+        onStreamStarted: () => {
+          client.interact({ prompt: 'Pet the cat' });
+        },
+        onInteractAcknowledged: () => {
+          client.endStream();
+        },
+        onStreamEnded: () => {
+          client.disconnect();
+        },
+        onError: (error, fatal) => {
+          console.error('Error:', error.message, 'Fatal:', fatal);
+        },
+      });
+      ```
+
+      ```typescript Image-to-Video theme={null}
+      import { Odyssey } from '@odysseyml/odyssey';
+
+      const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+      const imageFile = document.querySelector('input[type="file"]').files[0];
+
+      client.connect({
+        onConnected: (mediaStream) => {
+          document.querySelector('video').srcObject = mediaStream;
+          client.startStream({ prompt: 'A cat', image: imageFile });
+        },
+        onStreamStarted: () => {
+          client.interact({ prompt: 'Pet the cat' });
+        },
+        onInteractAcknowledged: () => {
+          client.endStream();
+        },
+        onStreamEnded: () => {
+          client.disconnect();
+        },
+        onError: (error, fatal) => {
+          console.error('Error:', error.message, 'Fatal:', fatal);
+        },
+      });
+      ```
+    </CodeGroup>
+  </Accordion>
+</AccordionGroup>
+
+## React
+
+<CodeGroup>
+  ```tsx Text-to-Video theme={null}
+  import { Odyssey } from '@odysseyml/odyssey';
+  import { useRef, useEffect, useState } from 'react';
+
+  const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+  function App() {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [prompt, setPrompt] = useState('');
+    const [status, setStatus] = useState('Disconnected');
+    const [isConnected, setIsConnected] = useState(false);
+    const [isStreaming, setIsStreaming] = useState(false);
+
+    useEffect(() => {
+      return () => client.disconnect();
+    }, []);
+
+    const handleConnect = async () => {
+      setStatus('Connecting...');
+      const mediaStream = await client.connect();
+      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      setIsConnected(true);
+      setStatus('Connected');
+    };
+
+    const handleSend = async () => {
+      if (!prompt.trim()) return;
+      const text = prompt;
+      setPrompt('');
+
+      if (isStreaming) {
+        await client.interact({ prompt: text });
+      } else {
+        setStatus('Starting...');
+        await client.startStream({ prompt: text });
+        setIsStreaming(true);
+        setStatus('Streaming');
+      }
+    };
+
+    return (
+      <div>
+        <video ref={videoRef} autoPlay playsInline muted />
+        <p>Status: {status}</p>
+        <button onClick={handleConnect} disabled={isConnected}>Connect</button>
+        <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+        <button onClick={handleSend} disabled={!isConnected}>Send</button>
+        <button onClick={() => client.endStream()} disabled={!isStreaming}>End</button>
+      </div>
+    );
+  }
+  ```
+
+  ```tsx Image-to-Video theme={null}
+  import { Odyssey } from '@odysseyml/odyssey';
+  import { useRef, useEffect, useState } from 'react';
+
+  const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+  function App() {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [prompt, setPrompt] = useState('');
+    const [image, setImage] = useState<File | null>(null);
+    const [status, setStatus] = useState('Disconnected');
+    const [isConnected, setIsConnected] = useState(false);
+    const [isStreaming, setIsStreaming] = useState(false);
+
+    useEffect(() => {
+      return () => client.disconnect();
+    }, []);
+
+    const handleConnect = async () => {
+      setStatus('Connecting...');
+      const mediaStream = await client.connect();
+      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      setIsConnected(true);
+      setStatus('Connected');
+    };
+
+    const handleSend = async () => {
+      const text = prompt;
+      setPrompt('');
+
+      if (isStreaming) {
+        await client.interact({ prompt: text });
+      } else {
+        setStatus('Starting...');
+        await client.startStream({ prompt: text, image: image || undefined });
+        setIsStreaming(true);
+        setStatus('Streaming');
+      }
+    };
+
+    return (
+      <div>
+        <video ref={videoRef} autoPlay playsInline muted />
+        <p>Status: {status}</p>
+        <button onClick={handleConnect} disabled={isConnected}>Connect</button>
+        <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} disabled={!isConnected || isStreaming} />
+        <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+        <button onClick={handleSend} disabled={!isConnected}>Send</button>
+        <button onClick={() => client.endStream()} disabled={!isStreaming}>End</button>
+      </div>
+    );
+  }
+  ```
+</CodeGroup>
+
+<AccordionGroup>
+  <Accordion title="Callback Style">
+    <CodeGroup>
+      ```tsx Text-to-Video theme={null}
+      import { Odyssey } from '@odysseyml/odyssey';
+      import { useRef, useEffect, useState } from 'react';
+
+      const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+      function App() {
+        const videoRef = useRef<HTMLVideoElement>(null);
+        const [prompt, setPrompt] = useState('');
+        const [isConnected, setIsConnected] = useState(false);
+        const [isStreaming, setIsStreaming] = useState(false);
+
+        useEffect(() => {
+          return () => client.disconnect();
+        }, []);
+
+        const handleConnect = () => {
+          client.connect({
+            onConnected: (mediaStream) => {
+              if (videoRef.current) videoRef.current.srcObject = mediaStream;
+              setIsConnected(true);
+            },
+            onStreamStarted: () => setIsStreaming(true),
+            onStreamEnded: () => setIsStreaming(false),
+            onError: (error) => console.error('Error:', error.message),
+          });
+        };
+
+        const handleSend = () => {
+          const text = prompt;
+          setPrompt('');
+          isStreaming
+            ? client.interact({ prompt: text })
+            : client.startStream({ prompt: text });
+        };
+
+        return (
+          <div>
+            <video ref={videoRef} autoPlay playsInline muted />
+            <button onClick={handleConnect} disabled={isConnected}>Connect</button>
+            <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+            <button onClick={handleSend} disabled={!isConnected}>Send</button>
+            <button onClick={() => client.endStream()} disabled={!isStreaming}>End</button>
+          </div>
+        );
+      }
+      ```
+
+      ```tsx Image-to-Video theme={null}
+      import { Odyssey } from '@odysseyml/odyssey';
+      import { useRef, useEffect, useState } from 'react';
+
+      const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+      function App() {
+        const videoRef = useRef<HTMLVideoElement>(null);
+        const [prompt, setPrompt] = useState('');
+        const [image, setImage] = useState<File | null>(null);
+        const [isConnected, setIsConnected] = useState(false);
+        const [isStreaming, setIsStreaming] = useState(false);
+
+        useEffect(() => {
+          return () => client.disconnect();
+        }, []);
+
+        const handleConnect = () => {
+          client.connect({
+            onConnected: (mediaStream) => {
+              if (videoRef.current) videoRef.current.srcObject = mediaStream;
+              setIsConnected(true);
+            },
+            onStreamStarted: () => setIsStreaming(true),
+            onStreamEnded: () => setIsStreaming(false),
+            onError: (error) => console.error('Error:', error.message),
+          });
+        };
+
+        const handleSend = () => {
+          const text = prompt;
+          setPrompt('');
+          isStreaming
+            ? client.interact({ prompt: text })
+            : client.startStream({ prompt: text, image: image || undefined });
+        };
+
+        return (
+          <div>
+            <video ref={videoRef} autoPlay playsInline muted />
+            <button onClick={handleConnect} disabled={isConnected}>Connect</button>
+            <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} disabled={!isConnected || isStreaming} />
+            <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+            <button onClick={handleSend} disabled={!isConnected}>Send</button>
+            <button onClick={() => client.endStream()} disabled={!isStreaming}>End</button>
+          </div>
+        );
+      }
+      ```
+    </CodeGroup>
+  </Accordion>
+
+  <Accordion title="Hook Style (useOdyssey)">
+    <CodeGroup>
+      ```tsx Text-to-Video theme={null}
+      import { useOdyssey } from '@odysseyml/odyssey/react';
+      import { useRef, useEffect, useState } from 'react';
+
+      function App() {
+        const videoRef = useRef<HTMLVideoElement>(null);
+        const [prompt, setPrompt] = useState('');
+        const [isConnected, setIsConnected] = useState(false);
+        const [isStreaming, setIsStreaming] = useState(false);
+
+        const odyssey = useOdyssey({
+          apiKey: 'ody_your_api_key_here',
+          handlers: {
+            onConnected: (mediaStream) => {
+              if (videoRef.current) videoRef.current.srcObject = mediaStream;
+              setIsConnected(true);
+            },
+            onStreamStarted: () => setIsStreaming(true),
+            onStreamEnded: () => setIsStreaming(false),
+            onDisconnected: () => {
+              setIsConnected(false);
+              setIsStreaming(false);
+            },
+            onError: (error) => console.error('Error:', error.message),
+          },
+        });
+
+        useEffect(() => {
+          return () => odyssey.disconnect();
+        }, []);
+
+        const handleSend = () => {
+          const text = prompt;
+          setPrompt('');
+          isStreaming
+            ? odyssey.interact({ prompt: text })
+            : odyssey.startStream({ prompt: text });
+        };
+
+        return (
+          <div>
+            <video ref={videoRef} autoPlay playsInline muted />
+            <p>Status: {odyssey.status}</p>
+            <button onClick={() => odyssey.connect()} disabled={isConnected}>Connect</button>
+            <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+            <button onClick={handleSend} disabled={!isConnected}>Send</button>
+            <button onClick={() => odyssey.endStream()} disabled={!isStreaming}>End</button>
+          </div>
+        );
+      }
+      ```
+
+      ```tsx Image-to-Video theme={null}
+      import { useOdyssey } from '@odysseyml/odyssey/react';
+      import { useRef, useEffect, useState } from 'react';
+
+      function App() {
+        const videoRef = useRef<HTMLVideoElement>(null);
+        const [prompt, setPrompt] = useState('');
+        const [image, setImage] = useState<File | null>(null);
+        const [isConnected, setIsConnected] = useState(false);
+        const [isStreaming, setIsStreaming] = useState(false);
+
+        const odyssey = useOdyssey({
+          apiKey: 'ody_your_api_key_here',
+          handlers: {
+            onConnected: (mediaStream) => {
+              if (videoRef.current) videoRef.current.srcObject = mediaStream;
+              setIsConnected(true);
+            },
+            onStreamStarted: () => setIsStreaming(true),
+            onStreamEnded: () => setIsStreaming(false),
+            onDisconnected: () => {
+              setIsConnected(false);
+              setIsStreaming(false);
+            },
+            onError: (error) => console.error('Error:', error.message),
+          },
+        });
+
+        useEffect(() => {
+          return () => odyssey.disconnect();
+        }, []);
+
+        const handleSend = () => {
+          const text = prompt;
+          setPrompt('');
+          isStreaming
+            ? odyssey.interact({ prompt: text })
+            : odyssey.startStream({ prompt: text, image: image || undefined });
+        };
+
+        return (
+          <div>
+            <video ref={videoRef} autoPlay playsInline muted />
+            <p>Status: {odyssey.status}</p>
+            <button onClick={() => odyssey.connect()} disabled={isConnected}>Connect</button>
+            <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} disabled={!isConnected || isStreaming} />
+            <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+            <button onClick={handleSend} disabled={!isConnected}>Send</button>
+            <button onClick={() => odyssey.endStream()} disabled={!isStreaming}>End</button>
+          </div>
+        );
+      }
+      ```
+    </CodeGroup>
+  </Accordion>
+</AccordionGroup>
+
+## Next.js
+
+<CodeGroup>
+  ```tsx Text-to-Video theme={null}
+  'use client';
+  import { Odyssey } from '@odysseyml/odyssey';
+  import { useRef, useEffect, useState } from 'react';
+
+  const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+  export default function OdysseyDemo() {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [prompt, setPrompt] = useState('');
+    const [isConnected, setIsConnected] = useState(false);
+    const [isStreaming, setIsStreaming] = useState(false);
+
+    useEffect(() => () => client.disconnect(), []);
+
+    const handleConnect = async () => {
+      const mediaStream = await client.connect();
+      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      setIsConnected(true);
+    };
+
+    const handleSend = async () => {
+      const text = prompt;
+      setPrompt('');
+      if (isStreaming) {
+        await client.interact({ prompt: text });
+      } else {
+        await client.startStream({ prompt: text });
+        setIsStreaming(true);
+      }
+    };
+
+    return (
+      <div>
+        <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', background: '#000' }} />
+        <button onClick={handleConnect} disabled={isConnected}>Connect</button>
+        <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+        <button onClick={handleSend} disabled={!isConnected}>Send</button>
+        <button onClick={() => { client.endStream(); setIsStreaming(false); }} disabled={!isStreaming}>End</button>
+      </div>
+    );
+  }
+  ```
+
+  ```tsx Image-to-Video theme={null}
+  'use client';
+  import { Odyssey } from '@odysseyml/odyssey';
+  import { useRef, useEffect, useState } from 'react';
+
+  const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+  export default function OdysseyDemo() {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [prompt, setPrompt] = useState('');
+    const [image, setImage] = useState<File | null>(null);
+    const [isConnected, setIsConnected] = useState(false);
+    const [isStreaming, setIsStreaming] = useState(false);
+
+    useEffect(() => () => client.disconnect(), []);
+
+    const handleConnect = async () => {
+      const mediaStream = await client.connect();
+      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      setIsConnected(true);
+    };
+
+    const handleSend = async () => {
+      const text = prompt;
+      setPrompt('');
+      if (isStreaming) {
+        await client.interact({ prompt: text });
+      } else {
+        await client.startStream({ prompt: text, image: image || undefined });
+        setIsStreaming(true);
+      }
+    };
+
+    return (
+      <div>
+        <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', background: '#000' }} />
+        <button onClick={handleConnect} disabled={isConnected}>Connect</button>
+        <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} disabled={!isConnected || isStreaming} />
+        <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+        <button onClick={handleSend} disabled={!isConnected}>Send</button>
+        <button onClick={() => { client.endStream(); setIsStreaming(false); }} disabled={!isStreaming}>End</button>
+      </div>
+    );
+  }
+  ```
+</CodeGroup>
+
+<AccordionGroup>
+  <Accordion title="Callback Style">
+    <CodeGroup>
+      ```tsx Text-to-Video theme={null}
+      'use client';
+      import { Odyssey } from '@odysseyml/odyssey';
+      import { useRef, useEffect, useState } from 'react';
+
+      const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+      export default function OdysseyDemo() {
+        const videoRef = useRef<HTMLVideoElement>(null);
+        const [prompt, setPrompt] = useState('');
+        const [isConnected, setIsConnected] = useState(false);
+        const [isStreaming, setIsStreaming] = useState(false);
+
+        useEffect(() => () => client.disconnect(), []);
+
+        const handleConnect = () => {
+          client.connect({
+            onConnected: (mediaStream) => {
+              if (videoRef.current) videoRef.current.srcObject = mediaStream;
+              setIsConnected(true);
+            },
+            onStreamStarted: () => setIsStreaming(true),
+            onStreamEnded: () => setIsStreaming(false),
+            onError: (error) => console.error('Error:', error.message),
+          });
+        };
+
+        const handleSend = () => {
+          const text = prompt;
+          setPrompt('');
+          isStreaming
+            ? client.interact({ prompt: text })
+            : client.startStream({ prompt: text });
+        };
+
+        return (
+          <div>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', background: '#000' }} />
+            <button onClick={handleConnect} disabled={isConnected}>Connect</button>
+            <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+            <button onClick={handleSend} disabled={!isConnected}>Send</button>
+            <button onClick={() => client.endStream()} disabled={!isStreaming}>End</button>
+          </div>
+        );
+      }
+      ```
+
+      ```tsx Image-to-Video theme={null}
+      'use client';
+      import { Odyssey } from '@odysseyml/odyssey';
+      import { useRef, useEffect, useState } from 'react';
+
+      const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+      export default function OdysseyDemo() {
+        const videoRef = useRef<HTMLVideoElement>(null);
+        const [prompt, setPrompt] = useState('');
+        const [image, setImage] = useState<File | null>(null);
+        const [isConnected, setIsConnected] = useState(false);
+        const [isStreaming, setIsStreaming] = useState(false);
+
+        useEffect(() => () => client.disconnect(), []);
+
+        const handleConnect = () => {
+          client.connect({
+            onConnected: (mediaStream) => {
+              if (videoRef.current) videoRef.current.srcObject = mediaStream;
+              setIsConnected(true);
+            },
+            onStreamStarted: () => setIsStreaming(true),
+            onStreamEnded: () => setIsStreaming(false),
+            onError: (error) => console.error('Error:', error.message),
+          });
+        };
+
+        const handleSend = () => {
+          const text = prompt;
+          setPrompt('');
+          isStreaming
+            ? client.interact({ prompt: text })
+            : client.startStream({ prompt: text, image: image || undefined });
+        };
+
+        return (
+          <div>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', background: '#000' }} />
+            <button onClick={handleConnect} disabled={isConnected}>Connect</button>
+            <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} disabled={!isConnected || isStreaming} />
+            <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+            <button onClick={handleSend} disabled={!isConnected}>Send</button>
+            <button onClick={() => client.endStream()} disabled={!isStreaming}>End</button>
+          </div>
+        );
+      }
+      ```
+    </CodeGroup>
+  </Accordion>
+
+  <Accordion title="Hook Style (useOdyssey)">
+    <CodeGroup>
+      ```tsx Text-to-Video theme={null}
+      'use client';
+      import { useOdyssey } from '@odysseyml/odyssey/react';
+      import { useRef, useEffect, useState } from 'react';
+
+      export default function OdysseyDemo() {
+        const videoRef = useRef<HTMLVideoElement>(null);
+        const [prompt, setPrompt] = useState('');
+        const [isConnected, setIsConnected] = useState(false);
+        const [isStreaming, setIsStreaming] = useState(false);
+
+        const odyssey = useOdyssey({
+          apiKey: 'ody_your_api_key_here',
+          handlers: {
+            onConnected: (mediaStream) => {
+              if (videoRef.current) videoRef.current.srcObject = mediaStream;
+              setIsConnected(true);
+            },
+            onStreamStarted: () => setIsStreaming(true),
+            onStreamEnded: () => setIsStreaming(false),
+            onDisconnected: () => {
+              setIsConnected(false);
+              setIsStreaming(false);
+            },
+            onError: (error) => console.error('Error:', error.message),
+          },
+        });
+
+        useEffect(() => () => odyssey.disconnect(), []);
+
+        const handleSend = () => {
+          const text = prompt;
+          setPrompt('');
+          isStreaming
+            ? odyssey.interact({ prompt: text })
+            : odyssey.startStream({ prompt: text });
+        };
+
+        return (
+          <div>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', background: '#000' }} />
+            <p>Status: {odyssey.status}</p>
+            <button onClick={() => odyssey.connect()} disabled={isConnected}>Connect</button>
+            <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+            <button onClick={handleSend} disabled={!isConnected}>Send</button>
+            <button onClick={() => odyssey.endStream()} disabled={!isStreaming}>End</button>
+          </div>
+        );
+      }
+      ```
+
+      ```tsx Image-to-Video theme={null}
+      'use client';
+      import { useOdyssey } from '@odysseyml/odyssey/react';
+      import { useRef, useEffect, useState } from 'react';
+
+      export default function OdysseyDemo() {
+        const videoRef = useRef<HTMLVideoElement>(null);
+        const [prompt, setPrompt] = useState('');
+        const [image, setImage] = useState<File | null>(null);
+        const [isConnected, setIsConnected] = useState(false);
+        const [isStreaming, setIsStreaming] = useState(false);
+
+        const odyssey = useOdyssey({
+          apiKey: 'ody_your_api_key_here',
+          handlers: {
+            onConnected: (mediaStream) => {
+              if (videoRef.current) videoRef.current.srcObject = mediaStream;
+              setIsConnected(true);
+            },
+            onStreamStarted: () => setIsStreaming(true),
+            onStreamEnded: () => setIsStreaming(false),
+            onDisconnected: () => {
+              setIsConnected(false);
+              setIsStreaming(false);
+            },
+            onError: (error) => console.error('Error:', error.message),
+          },
+        });
+
+        useEffect(() => () => odyssey.disconnect(), []);
+
+        const handleSend = () => {
+          const text = prompt;
+          setPrompt('');
+          isStreaming
+            ? odyssey.interact({ prompt: text })
+            : odyssey.startStream({ prompt: text, image: image || undefined });
+        };
+
+        return (
+          <div>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', background: '#000' }} />
+            <p>Status: {odyssey.status}</p>
+            <button onClick={() => odyssey.connect()} disabled={isConnected}>Connect</button>
+            <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} disabled={!isConnected || isStreaming} />
+            <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Enter prompt..." disabled={!isConnected} />
+            <button onClick={handleSend} disabled={!isConnected}>Send</button>
+            <button onClick={() => odyssey.endStream()} disabled={!isStreaming}>End</button>
+          </div>
+        );
+      }
+      ```
+    </CodeGroup>
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+  Next.js App Router requires the `'use client'` directive for components using React hooks and browser APIs like video elements.
+</Info>
+
+## Python
+
+<CodeGroup>
+  ```python Text-to-Video theme={null}
+  import asyncio
+  from odyssey import Odyssey, OdysseyAuthError, OdysseyConnectionError
+
+  async def main():
+      client = Odyssey(api_key="ody_your_api_key_here")
+
+      try:
+          await client.connect(
+              on_video_frame=lambda frame: print(f"Frame: {frame.width}x{frame.height}"),
+              on_stream_started=lambda stream_id: print(f"Ready: {stream_id}"),
+          )
+          await client.start_stream("A cat", portrait=True)
+          await client.interact("Pet the cat")
+          await client.end_stream()
+      except OdysseyAuthError:
+          print("Invalid API key")
+      except OdysseyConnectionError as e:
+          print(f"Connection failed: {e}")
+      finally:
+          await client.disconnect()
+
+  asyncio.run(main())
+  ```
+
+  ```python Image-to-Video theme={null}
+  import asyncio
+  from odyssey import Odyssey, OdysseyAuthError, OdysseyConnectionError
+
+  async def main():
+      client = Odyssey(api_key="ody_your_api_key_here")
+
+      try:
+          await client.connect(
+              on_video_frame=lambda frame: print(f"Frame: {frame.width}x{frame.height}"),
+              on_stream_started=lambda stream_id: print(f"Ready: {stream_id}"),
+          )
+          # Start with an image file
+          await client.start_stream(
+              prompt="A cat",
+              portrait=False,
+              image_path="/path/to/image.jpg"
+          )
+          await client.interact("Pet the cat")
+          await client.end_stream()
+      except OdysseyAuthError:
+          print("Invalid API key")
+      except OdysseyConnectionError as e:
+          print(f"Connection failed: {e}")
+      finally:
+          await client.disconnect()
+
+  asyncio.run(main())
+  ```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup>
+  <Card title="JavaScript" icon="js" href="sdk/javascript/introduction" />
+
+  <Card title="Python" icon="python" href="sdk/python/introduction" />
+</CardGroup>
+
+<Card title="Discord Community" icon="discord" href="https://discord.com/invite/CmV5DgJMAW">
+  Get help and share what you're building.
+</Card>
+
+
+# Introducing the Odyssey API
+Source: https://documentation.api.odyssey.ml/index
+
+A new form of multimodal intelligence.
+
+[Odyssey-2 Pro ](https://odyssey.ml/the-gpt-2-moment-for-world-models)is a general-purpose world model, enabling new kinds of consumer, enterprise, and intelligence applications.
+
+Odyssey-2 Pro outputs continuous, interactive simulations that can now be embedded into your application in multiple ways. We’ve built three API endpoints—interactive streams, viewable streams, and simulations—to support both online, real-time generation and offline, batch workflows. Together, they enable builders to integrate world models in many ways.
+
+<CardGroup>
+  <Card title="Create a developer account" icon="user-check" href="https://developer.odyssey.ml/dashboard">
+    Get an API key.
+  </Card>
+
+  <Card title="API Quick Start" icon="rocket" href="/api-quick-start">
+    Get up and running in 5 minutes.
+  </Card>
+</CardGroup>
+
+<CardGroup>
+  <Card title="JavaScript" icon="js" href="sdk/javascript/introduction">
+    Integrate our JavaScript SDK.
+  </Card>
+
+  <Card title="Python" icon="python" href="sdk/python/introduction">
+    Integrate our Python SDK.
+  </Card>
+</CardGroup>
+
+## How can we help?
+
+<CardGroup>
+  <Card title="Discord Community" icon="discord" href="https://discord.com/invite/CmV5DgJMAW">
+    Join our community for updates.
+  </Card>
+
+  <Card title="Contact Support" icon="envelope" href="mailto:support@odyssey.ml">
+    Reach out to our team for assistance.
+  </Card>
+</CardGroup>
+
+<Info>
+  Before accessing or using our API, please review our [**API License Agreement**](https://odyssey.ml/legal), which governs your access to and use of it.UserRoundPlus
+</Info>
+
+
+# Interaction Tips
+Source: https://documentation.api.odyssey.ml/interaction-tips
+
+A practical guide with examples to get you started interacting with Odyssey-2 Pro.
+
+## Let's structure a prompt
+
+Consider including the below elements in your prompt. The more exhaustive your prompt, the clearer the picture Odyssey-2 Pro will be able to reference.
+
+1. **Subject**: Objects, animals, people, or sceneries to be included. For example, *cityscape*, *desert*, *boats*, *puppies*, or *3 friends*.
+2. **Action**: What the subject(s) are doing. For example, *walking*, *running*, *talking*, *painting*, or *sitting*.
+3. **Environment:** The background, setting or time of day.
+4. **Style**: Define art styles, artists, art mediums, colloquial aesthetics, or film style keywords; *horror*, *film noir*, or *cartoon*.
+5. **Camera position and movement**: *top-down*, *aerial*, *eye-level*, *worm’s-eye*, etc.
+6. **Composition**: How the shot is framed, such as *wide shot*, *close-up*, *single-shot* or *two-shot*.
+7. **Focus and lens effects**: Use terms like *shallow focus*, *deep focus*, *soft focus*, *macro lens*, and *wide-angle lens* to achieve specific visual effects.
+8. **Ambiance/mood/lighting:** Lighting and its color such as *soft light*, *harsh*, *neon*, *sunset*, *dark*, *ominous*, *blue tones*, *warm tones*, *day* or *night*.
+
+For example:
+
+> [Two Italian brothers dressed in steampunk, sitting in a booth at a harshly lit, futuristic, cyberpunk coffee cafe.](https://experience.odyssey.ml/CBVetKeYHh)
+
+***
+
+## Adding styles & visual aesthetics
+
+Odyssey-2 Pro understands a wide range of **colloquial stylistic descriptions**, even when they aren’t formal art terms. You can reference **your favorite artist**, **a well-known art movement**, or even **cultural shorthand** like “Minecraft style,” “1960s cartoon,” or “GTA 6 graphics.” These light-touch style cues are often enough for Odyssey-2 Pro to infer the entire aesthetic: color palettes, brushwork, rendering modes, lighting, and even cultural conventions.
+
+The examples below demonstrate some of the categories Odyssey-2 Pro responds to.
+
+### [Pop art](https://experience.odyssey.ml/V3cbvheT27)
+
+Bright colors, bold outlines, graphic/comic vibes. Great for stylized, attention-grabbing scenes.
+
+### [Surrealism](https://experience.odyssey.ml/wsZfL3SNJO)
+
+Dreamlike, bizarre, subconscious imagery that feels symbolic or dream-logic driven.
+
+### [Cubism](https://experience.odyssey.ml/7CzLiATpWN)
+
+Fragmented geometry, multiple viewpoints at once. Odyssey-2 Pro leans into angular shapes and abstract composition.
+
+### [Graffiti, street art](https://experience.odyssey.ml/n7pQ6qopFO)
+
+Sprayed textures, bold stencils, urban flair. Ideal for edgy or contemporary aesthetics.
+
+### Other recognized styles
+
+* **Minimalism:** Clean shapes, limited palette, visual simplicity. Useful when you want clarity and negative space.
+* **Renaissance style:** Classical realism, dramatic lighting, and idealized forms; Odyssey-2 Pro applies period-accurate rendering.
+* **Expressionism:** Emotion-driven distortion and heavy brushstrokes. Odyssey-2 Pro picks up on intensity and exaggeration.
+
+Odyssey-2 Pro is flexible with colloquial or genre-based styles, even when they aren’t classical art movements. These examples show that Odyssey-2 Pro understands **cultural styles** just as well as formal art terms:
+
+* [**Photorealistic**](https://experience.odyssey.ml/QMnVCCvi3Y)
+* [**8-bit pixel art**](https://experience.odyssey.ml/yqYoHlRl7f)
+* [**Minecraft voxel style**](https://experience.odyssey.ml/z14NkDFT6D)
+* [**Japanese anime**](https://experience.odyssey.ml/UcWmD9kHBk)
+* [**1960s cartoon**](https://experience.odyssey.ml/wXBARO5s6K)
+* [**2010s cartoon**](https://experience.odyssey.ml/Nal9zxgTt8)
+* [**GTA-6 realism**](https://experience.odyssey.ml/xTbYtpTt10)
+
+### Mixing multiple styles & visual concepts in one prompt
+
+Odyssey-2 Pro can faithfully blend multiple styles and concepts into one creation—often with one simple stylistic direction. For example, this single base prompt:
+
+> A man and his dog walking through an alley way towards the camera in soft focus, in the style…
+>
+> * [**dark fantasy**](https://experience.odyssey.ml/MIGedqjAKY)
+> * [**film noir**](https://experience.odyssey.ml/5Fw5ST3jRF)
+
+Notice how the stylistic cue alone affects the setting, the man, his clothes, the overall color palette, and the dog. Try prompting a fusion of your favorite representations.
+
+***
+
+## Framing your subject
+
+Odyssey-2 Pro understands common cinematography terms for **subject distance** and **framing**. These influence how much of the character fills the frame and are great for controlling intimacy, tension, or detail.
+
+* **Macro shot:** extreme detail of tiny subjects
+* **Extreme close-up (ECU):** detailed level
+* **Close-up (CU):** head fills frame
+* **Medium close-up (MCU):** chest-up
+* **Over-the-shoulder (OTS):** positioned behind one subject, looking over their shoulder toward another subject or focal point
+
+***
+
+## Adjusting the camera's position
+
+For storytelling or blocking, you can specify where the camera physically sits. This helps you choreograph generations with more precision.
+
+* **Bird’s-eye view:** Overhead, looking down upon subject
+* **Profile shot:** Side view of subject
+* **Back/behind shot:** Rear view of subject
+
+***
+
+## Using negative prompts
+
+Prompting Odyssey-2 Pro what you **don’t** want can help constrain and exclude attributes from generation. For example:
+
+| Prompt                                                                                                                                            | Result                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Animation of a large, solitary oak tree with leaves blowing vigorously in a strong wind.                                                          | [Standing Strong in the Storm](https://experience.odyssey.ml/mGDiJImnmk) |
+| Animation of a large, solitary oak tree with leaves blowing vigorously in a strong wind. Negative prompt: dark, stormy, or threatening atmosphere | [Gentle Wind, Silent Oak](https://experience.odyssey.ml/6PcdjfD6kQ)      |
+
+***
+
+# Tips for prompting midstream
+
+Dynamic present-tense action verbs (“puts on glasses”) can cause actions to loop, while **stative present-continuous descriptions** (“is wearing glasses”) describe a **completed, ongoing state**—a condition that is already true, not something that needs to repeat.
+
+<Columns>
+  <Card title="Midstream: &#x22;puts on glasses&#x22;" icon="circle-xmark" href="https://experience.odyssey.ml/0Gj9MVOPPg">
+    **Action phrasing (verbs) → loops**
+
+    <video />
+
+    > ["puts on glasses"](https://experience.odyssey.ml/0Gj9MVOPPg) gets interpreted as an ongoing event that repeats.
+  </Card>
+
+  <Card title="Midstream: &#x22;is wearing glasses&#x22;" icon="check" href="https://experience.odyssey.ml/NoSYwkGlkz">
+    **State description → no loops**
+
+    <video />
+
+    > ["is wearing glasses"](https://experience.odyssey.ml/NoSYwkGlkz) gets interpreted as a one-time, stable result.
+  </Card>
+</Columns>
+
+***
+
+# Known limitations
+
+Known non-real subjects and actions limit Odyssey-2 Pro’s ability to adhere to stylistic requests and realism. The model will often seek to accurately represent your subject/action, at the expense of your stylistic requests.
+
+Below, notice as we get farther from **“man”**, the silhouette becomes less a silhouette and realism suffers.
+
+| Prompt                                                                                                           | Result                                                                   |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Silhouette of **`a man`** standing in front of a bright setting sun side angle, cinematic contrast.              | [Silhouette at Sunset Cliffs](https://experience.odyssey.ml/EMUJx6Tlzx)  |
+| Silhouette of **`an Italian plumber`** standing in front of a bright setting sun side angle, cinematic contrast. | [Silhouette of a Hero at Dusk](https://experience.odyssey.ml/ody7nrOfvl) |
+| Silhouette of **`Mario`** standing in front of a bright setting sun side angle, cinematic contrast.              | [Mario at Sunset's Edge](https://experience.odyssey.ml/Mnq2Z4DhOb)       |
+
+
+# Odyssey-2 Pro Overview
+Source: https://documentation.api.odyssey.ml/odyssey-2-overview
+
+A frontier world model that brings video to life.
+
+At its core, Odyssey-2 Pro is an action-conditioned world model. Given the current state, an incoming action, and a history of states and actions, the model predicts the next state in the form of a video frame. You interact with Odyssey-2 Pro much like a language model: type a few words and it begins streaming minutes of imagined video to any screen or device. Type a few more words, and the video adapts to your new request in that moment.
+
+<img alt="World Model Architecture" title="World Model Architecture" />
+
+## A world model, not a video model
+
+Traditional bidirectional video models today take 1-2 minutes to generate only 5 seconds of footage. Odyssey-2 Pro, on the other hand, begins generating and streaming video instantly—producing a new frame of video every 50 milliseconds. As Odyssey-2 Pro's video streams, you can shape it in real time with additional inputs. The result is a continuous stream of video that listens, adapts, and reacts.
+
+| World Models                                                    | Video Models                                             |
+| :-------------------------------------------------------------- | :------------------------------------------------------- |
+| Predicts one frame at a time, reacting to what happens.         | Generates a full video in one go.                        |
+| Every future is possible.                                       | The model knows the end from the start.                  |
+| Fully interactive—responds instantly to user input at any time. | No interactivity—the clip plays out the same every time. |
+
+<Columns>
+  <Card title="A face painted">
+    <video />
+
+    <Steps>
+      <Step title="Prompt">
+        A close-up portrait of a woman, illuminated by soft, directional lighting. The background is softly blurred. The camera remains steady.
+      </Step>
+
+      <Step title="Midstream">
+        The woman paints her face with green paint.
+      </Step>
+    </Steps>
+  </Card>
+
+  <Card title="A painting come to life">
+    <video />
+
+    <Steps>
+      <Step title="Prompt">
+        A close shot of a painter using oil paint to paint a fireplace hearth on canvas.
+      </Step>
+
+      <Step title="Midstream">
+        The flames painted on the canvas come to life. The canvas is on fire.
+      </Step>
+    </Steps>
+  </Card>
+</Columns>
+
+## World models are burgeoning world simulators
+
+World models predict the next frame using only the past, and then roll forward. Long rollouts punish bad guesses, so the model must internalize the dynamics of how motion, lighting, and contact evolve over time. In doing so, they become implicit world simulators—systems that learn to model and generate the world in real time.
+
+Waves on the ocean are a great example. From prior video frames of a wave, you can infer surface slope, curvature, and a velocity field. With that, you can predict what comes next: the crest advances, troughs fill, foam drifts, highlights slide, and the wave bends around a rock. Although early on this journey, that’s exactly what Odyssey-2 Pro does, all learned from decades of video data. This same concept applies generally to dynamics and behaviors of many types.
+
+Language models showed how far a simple next-step objective can go—predicting the next word unlocked reasoning and creativity. models take that idea further. By learning to predict the next frame of video, they begin to approximate the rules that govern our world. As these models learn to act and react to the highest levels of realism, they will transition from enabling emergent media to a general-purpose world simulator.
+
+
+# Examples
+Source: https://documentation.api.odyssey.ml/sdk/javascript/examples
+
+Complete usage examples for the Odyssey client.
+
+## Vanilla JavaScript
+
+```javascript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const videoElement = document.getElementById('video');
+const statusElement = document.getElementById('status');
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+async function connect() {
+  try {
+    await client.connect({
+      onConnected: (mediaStream) => {
+        videoElement.srcObject = mediaStream;
+        videoElement.play();
+      },
+      onDisconnected: () => {
+        videoElement.srcObject = null;
+      },
+      onStatusChange: (status, message) => {
+        statusElement.textContent = message || status;
+      },
+      onError: (error, fatal) => {
+        console.error('Error:', error.message);
+        if (fatal) {
+          statusElement.textContent = 'Connection failed: ' + error.message;
+        }
+      },
+    });
+  } catch (error) {
+    console.error('Failed to connect:', error.message);
+    statusElement.textContent = 'Connection failed: ' + error.message;
+  }
+}
+
+async function startStream() {
+  const streamId = await client.startStream({ prompt: 'A cat', portrait: true });
+  console.log('Stream started:', streamId);
+}
+
+async function interact(prompt) {
+  const ack = await client.interact({ prompt });
+  console.log('Acknowledged:', ack);
+}
+
+function disconnect() {
+  client.disconnect();
+}
+
+// Usage
+connect();
+document.getElementById('start-btn').onclick = startStream;
+document.getElementById('interact-btn').onclick = () => interact('Pet the cat');
+document.getElementById('disconnect-btn').onclick = disconnect;
+```
+
+## HTML Boilerplate
+
+```html theme={null}
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Odyssey Demo</title>
+</head>
+<body>
+  <video id="video" autoplay playsinline muted></video>
+  <p id="status">Disconnected</p>
+
+  <button id="start-btn">Start Stream</button>
+  <button id="interact-btn">Interact</button>
+  <button id="disconnect-btn">Disconnect</button>
+
+  <script type="module">
+    import { Odyssey } from '@odysseyml/odyssey';
+
+    const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+
+    try {
+      await client.connect({
+        onConnected: (mediaStream) => {
+          video.srcObject = mediaStream;
+          status.textContent = 'Connected';
+        },
+        onError: (error, fatal) => {
+          console.error('Error:', error.message);
+          if (fatal) status.textContent = 'Connection failed';
+        },
+        onStatusChange: (s, msg) => {
+          status.textContent = msg || s;
+        },
+      });
+
+      document.getElementById('start-btn').onclick = async () => {
+        await client.startStream({ prompt: 'A cat' });
+      };
+    } catch (error) {
+      console.error('Failed to connect:', error.message);
+      status.textContent = 'Connection failed';
+    }
+
+    document.getElementById('interact-btn').onclick = async () => {
+      await client.interact({ prompt: 'Pet the cat' });
+    };
+
+    document.getElementById('disconnect-btn').onclick = () => {
+      client.disconnect();
+    };
+  </script>
+</body>
+</html>
+```
+
+## React with TypeScript
+
+```tsx theme={null}
+import { useEffect, useRef, useState } from 'react';
+import { useOdyssey } from '@odysseyml/odyssey/react';
+
+function App() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [prompt, setPrompt] = useState('');
+
+  const odyssey = useOdyssey({
+    apiKey: 'ody_your_api_key_here',
+    handlers: {
+      onConnected: (mediaStream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.play();
+        }
+      },
+      onDisconnected: () => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+      },
+      onError: (error, fatal) => {
+        console.error('Error:', error.message, 'Fatal:', fatal);
+      },
+      onStreamStarted: (streamId) => {
+        console.log('Stream started:', streamId);
+      },
+      onInteractAcknowledged: (ackPrompt) => {
+        console.log('Interaction acknowledged:', ackPrompt);
+      },
+      onStreamError: (reason, message) => {
+        console.error('Stream error:', reason, message);
+      },
+    },
+  });
+
+  useEffect(() => {
+    odyssey.connect()
+      .then(stream => console.log('Connected with stream:', stream.id))
+      .catch(err => console.error('Connection failed:', err.message));
+    return () => odyssey.disconnect();
+  }, []);
+
+  const handleStart = async () => {
+    await odyssey.startStream({ prompt: 'A cat at sunset', portrait: true });
+  };
+
+  const handleInteract = async () => {
+    if (prompt.trim()) {
+      await odyssey.interact({ prompt });
+      setPrompt('');
+    }
+  };
+
+  const handleEnd = async () => {
+    await odyssey.endStream();
+  };
+
+  return (
+    <div>
+      <video ref={videoRef} autoPlay playsInline muted />
+
+      <div>
+        <p>Status: {odyssey.status}</p>
+        {odyssey.error && <p style={{ color: 'red' }}>{odyssey.error}</p>}
+      </div>
+
+      <div>
+        <button onClick={handleStart} disabled={!odyssey.isConnected}>
+          Start Stream
+        </button>
+
+        <input
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Enter interaction prompt..."
+        />
+        <button onClick={handleInteract} disabled={!odyssey.isConnected}>
+          Send
+        </button>
+
+        <button onClick={handleEnd} disabled={!odyssey.isConnected}>
+          End Stream
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default App;
+```
+
+## Error Handling Pattern
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+await client.connect({
+  onError: (error, fatal) => {
+    if (fatal) {
+      // Connection cannot continue - show error UI
+      showErrorPage(error.message);
+    } else {
+      // Recoverable - show notification
+      showNotification(`Warning: ${error.message}`);
+    }
+  },
+  onStreamError: (reason, message) => {
+    // Stream-specific error (e.g., model crashed)
+    console.error(`Stream error [${reason}]: ${message}`);
+
+    // You might want to restart the stream
+    await client.endStream();
+    await client.startStream({ prompt: 'Recovery prompt' });
+  },
+});
+```
+
+## Status Monitoring
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+await client.connect({
+  onStatusChange: (status, message) => {
+    switch (status) {
+      case 'authenticating':
+        showLoader('Authenticating...');
+        break;
+      case 'connecting':
+        showLoader('Connecting to server...');
+        break;
+      case 'reconnecting':
+        showLoader('Reconnecting...');
+        break;
+      case 'connected':
+        hideLoader();
+        showSuccess('Connected!');
+        break;
+      case 'disconnected':
+        showInfo('Disconnected');
+        break;
+      case 'failed':
+        showError(message || 'Connection failed');
+        break;
+    }
+  },
+});
+```
+
+## Image-to-Video
+
+<Info>
+  **Image-to-video requirements:**
+
+  * SDK version 1.0.0+
+  * Max size: 25MB
+  * Supported formats: JPEG, PNG, WebP, GIF, BMP, HEIC, HEIF, AVIF
+  * Images are resized to 1280x704 (landscape) or 704x1280 (portrait)
+</Info>
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+// File input handler
+const fileInput = document.getElementById('image-input') as HTMLInputElement;
+
+fileInput.addEventListener('change', async () => {
+  const imageFile = fileInput.files?.[0];
+  if (!imageFile) return;
+
+  // Connect to Odyssey
+  const mediaStream = await client.connect();
+  document.querySelector('video').srcObject = mediaStream;
+
+  // Start stream with the image
+  const streamId = await client.startStream({
+    prompt: 'A cat',
+    portrait: false, // landscape
+    image: imageFile
+  });
+  console.log('Stream started:', streamId);
+
+  // Interact as usual
+  await client.interact({ prompt: 'Pet the cat' });
+});
+
+// Cleanup
+window.addEventListener('beforeunload', () => client.disconnect());
+```
+
+## Working with the Simulate API
+
+<Info>
+  The Simulate API requires SDK version 1.0.0 or higher.
+</Info>
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+// Create a simulation with a scripted sequence
+const job = await client.simulate({
+  script: [
+    { timestamp_ms: 0, start: { prompt: 'A cat sitting on a windowsill' } },
+    { timestamp_ms: 3000, interact: { prompt: 'The cat watches a bird outside' } },
+    { timestamp_ms: 6000, interact: { prompt: 'The cat stretches lazily' } },
+    { timestamp_ms: 9000, end: {} }
+  ],
+  portrait: true
+});
+
+console.log('Simulation started:', job.job_id);
+
+// Poll for completion
+async function waitForCompletion(jobId: string) {
+  while (true) {
+    const status = await client.getSimulateStatus(jobId);
+
+    if (status.status === 'completed') {
+      return status;
+    }
+    if (status.status === 'failed') {
+      throw new Error(`Simulation failed: ${status.error_message}`);
+    }
+    if (status.status === 'cancelled') {
+      throw new Error('Simulation was cancelled');
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+}
+
+const result = await waitForCompletion(job.job_id);
+
+// Get recordings from completed simulation
+for (const stream of result.streams) {
+  const recording = await client.getRecording(stream.stream_id);
+  console.log('Video URL:', recording.video_url);
+}
+```
+
+
+# Overview
+Source: https://documentation.api.odyssey.ml/sdk/javascript/introduction
+
+Complete API reference for the Odyssey JavaScript client library.
+
+The `@odysseyml/odyssey` package provides a TypeScript/JavaScript client for interacting with Odyssey's audio-visual intelligence.
+
+| Feature      | Minimum Version |
+| ------------ | --------------- |
+| Core SDK     | `^1.0.0`        |
+| Recordings   | `^1.0.0`        |
+| Simulate API | `^1.0.0`        |
+
+## Installation
+
+<CodeGroup>
+  ```bash npm theme={null}
+  npm install @odysseyml/odyssey
+  ```
+
+  ```bash yarn theme={null}
+  yarn add @odysseyml/odyssey
+  ```
+
+  ```bash pnpm theme={null}
+  pnpm add @odysseyml/odyssey
+  ```
+</CodeGroup>
+
+## API Summary
+
+### Methods
+
+| Signature                                                               | Description                                                     |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `connect(handlers?): Promise<MediaStream>`                              | Connect to a streaming session (returns MediaStream when ready) |
+| `disconnect(): void`                                                    | Disconnect and clean up resources                               |
+| `startStream(options?): Promise<string>`                                | Start an interactive stream                                     |
+| `interact(options): Promise<string>`                                    | Send a prompt to update the video                               |
+| `endStream(): Promise<void>`                                            | End the current stream session                                  |
+| `attachToVideo(element): HTMLVideoElement`                              | Attach stream to a video element                                |
+| `getRecording(streamId): Promise<Recording>`                            | Get recording URLs for a stream                                 |
+| `listStreamRecordings(options?): Promise<StreamRecordingsListResponse>` | List user's stream recordings                                   |
+| `simulate(options): Promise<SimulationJob>`                             | Create an async simulation job                                  |
+| `getSimulateStatus(id): Promise<SimulationJobDetail>`                   | Get simulation job status                                       |
+| `listSimulations(options?): Promise<SimulationJobsList>`                | List simulation jobs                                            |
+| `cancelSimulation(id): Promise<void>`                                   | Cancel a simulation job                                         |
+
+### Properties
+
+| Property           | Type                     | Description                 |                            |
+| ------------------ | ------------------------ | --------------------------- | -------------------------- |
+| `isConnected`      | `boolean`                | Whether connected and ready |                            |
+| `currentStatus`    | `ConnectionStatus`       | Current connection status   |                            |
+| `currentSessionId` | \`string                 | null\`                      | Current session ID         |
+| `mediaStream`      | \`MediaStream            | null\`                      | Video stream from streamer |
+| `connectionState`  | \`RTCPeerConnectionState | null\`                      | WebRTC connection state    |
+
+### Event Handlers
+
+| Handler                  | Parameters                     | Description                                                    |
+| ------------------------ | ------------------------------ | -------------------------------------------------------------- |
+| `onConnected`            | `mediaStream: MediaStream`     | Video stream established                                       |
+| `onDisconnected`         | -                              | Video stream closed                                            |
+| `onStreamStarted`        | `streamId: string`             | Interactive stream ready (streamId can be used for recordings) |
+| `onStreamEnded`          | -                              | Interactive stream ended                                       |
+| `onInteractAcknowledged` | `prompt: string`               | Interaction processed                                          |
+| `onStreamError`          | `reason, message`              | Stream error occurred                                          |
+| `onError`                | `error: Error, fatal: boolean` | General error                                                  |
+| `onStatusChange`         | `status, message?`             | Connection status changed                                      |
+
+## Next Steps
+
+<CardGroup>
+  <Card title="Odyssey Class" icon="cube" href="/sdk/javascript/odyssey-class">
+    Main client class documentation
+  </Card>
+
+  <Card title="React Hook" icon="react" href="/sdk/javascript/react-hook">
+    useOdyssey hook for React apps
+  </Card>
+
+  <Card title="Recordings" icon="video" href="/sdk/javascript/recordings">
+    Working with stream recordings
+  </Card>
+
+  <Card title="Simulate API" icon="robot" href="/sdk/javascript/simulations">
+    Async scripted video generation
+  </Card>
+
+  <Card title="Types" icon="code" href="/sdk/javascript/types">
+    TypeScript types and interfaces
+  </Card>
+
+  <Card title="Examples" icon="file-code" href="/sdk/javascript/examples">
+    Complete usage examples
+  </Card>
+</CardGroup>
+
+
+# Odyssey Class
+Source: https://documentation.api.odyssey.ml/sdk/javascript/odyssey-class
+
+Main client class for interacting with Odyssey's audio-visual intelligence.
+
+The main client class for connecting to Odyssey's audio-visual intelligence platform.
+
+## Constructor
+
+```typescript theme={null}
+constructor(config: ClientConfig)
+```
+
+Creates a new Odyssey client instance with the provided API key.
+
+| Parameter | Type                                                 | Description                |
+| --------- | ---------------------------------------------------- | -------------------------- |
+| `config`  | [`ClientConfig`](/sdk/javascript/types#clientconfig) | Configuration with API key |
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+```
+
+## Methods
+
+### connect()
+
+Connect to a streaming session. The Odyssey API automatically assigns an available session.
+
+```typescript theme={null}
+async connect(handlers?: OdysseyEventHandlers): Promise<MediaStream>
+```
+
+| Parameter  | Type                                                                 | Description                                |
+| ---------- | -------------------------------------------------------------------- | ------------------------------------------ |
+| `handlers` | [`OdysseyEventHandlers`](/sdk/javascript/types#odysseyeventhandlers) | Optional event handlers for callback style |
+
+**Returns:** `Promise<MediaStream>` - Resolves with the MediaStream when the connection is fully ready (including data channel). You can call `startStream()` immediately after this resolves.
+
+<Info>
+  The `connect()` method supports two usage patterns: **Await Style** for sequential code, and **Callback Style** for event-driven code. Both patterns wait for the data channel to be ready before proceeding.
+</Info>
+
+<CodeGroup>
+  ```typescript Await Style theme={null}
+  // Await style - use when you want sequential, Promise-based code
+  const mediaStream = await client.connect();
+  videoElement.srcObject = mediaStream;
+
+  // Connection is fully ready - no delay needed!
+  await client.startStream({ prompt: 'A cat' });
+  await client.interact({ prompt: 'Pet the cat' });
+  ```
+
+  ```typescript Callback Style theme={null}
+  // Callback style - use for event-driven code
+  client.connect({
+    onConnected: (mediaStream) => {
+      videoElement.srcObject = mediaStream;
+      // Connection is fully ready - can call startStream immediately
+      client.startStream({ prompt: 'A cat' });
+    },
+    onStreamStarted: (streamId) => {
+      console.log('Stream ready:', streamId);
+      client.interact({ prompt: 'Pet the cat' });
+    },
+    onStreamEnded: () => {
+      console.log('Stream ended');
+    },
+    onDisconnected: () => {
+      console.log('Disconnected');
+    },
+    onStatusChange: (status, message) => {
+      console.log('Status:', status, message);
+    },
+    onError: (error, fatal) => {
+      console.error('Error:', error.message, 'Fatal:', fatal);
+    },
+  });
+  ```
+</CodeGroup>
+
+#### When to use each style
+
+| Style        | Best for                                                                      |
+| ------------ | ----------------------------------------------------------------------------- |
+| **Await**    | Sequential operations, simpler code flow, when you control the timing         |
+| **Callback** | UI-driven interactions, reactive patterns, when you need to respond to events |
+
+<Warning>
+  Both styles properly wait for the data channel to be ready. You do **not** need to add any artificial delays between `connect()` and `startStream()`.
+</Warning>
+
+### disconnect()
+
+Disconnect from the session and clean up resources.
+
+```typescript theme={null}
+disconnect(): void
+```
+
+```typescript theme={null}
+client.disconnect();
+```
+
+### startStream()
+
+Start an interactive stream session.
+
+```typescript theme={null}
+startStream(options?: StartStreamOptions): Promise<string>
+```
+
+| Option     | Type      | Default | Description                                                                                     |                                              |
+| ---------- | --------- | ------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `prompt`   | `string`  | `''`    | Initial prompt to generate video content                                                        |                                              |
+| `portrait` | `boolean` | `true`  | `true` for portrait (704x1280), `false` for landscape (1280x704). Resolution may vary by model. |                                              |
+| `image`    | \`File    | Blob\`  | —                                                                                               | Optional image for image-to-video generation |
+
+**Returns:** `Promise<string>` - Resolves with the stream ID when the stream is ready. Use this ID to retrieve recordings.
+
+```typescript theme={null}
+const streamId = await client.startStream({ prompt: 'A cat', portrait: true });
+console.log('Stream started:', streamId);
+```
+
+<Info>
+  **Image-to-video requirements:**
+
+  * SDK version 1.0.0+
+  * Max size: 25MB
+  * Supported formats: JPEG, PNG, WebP, GIF, BMP, HEIC, HEIF, AVIF
+  * Images are resized to 1280x704 (landscape) or 704x1280 (portrait)
+</Info>
+
+```typescript theme={null}
+// Image-to-video example
+const mediaStream = await client.connect();
+const imageFile = fileInput.files[0];
+const streamId = await client.startStream({
+  prompt: 'A cat',
+  portrait: false,
+  image: imageFile
+});
+```
+
+### interact()
+
+Send an interaction prompt to update the video content.
+
+```typescript theme={null}
+interact(options: InteractOptions): Promise<string>
+```
+
+| Option   | Type     | Description            |
+| -------- | -------- | ---------------------- |
+| `prompt` | `string` | The interaction prompt |
+
+**Returns:** `Promise<string>` - Resolves with the acknowledged prompt when processed.
+
+```typescript theme={null}
+const ackPrompt = await client.interact({ prompt: 'Pet the cat' });
+console.log('Interaction acknowledged:', ackPrompt);
+```
+
+### endStream()
+
+End the current interactive stream session.
+
+```typescript theme={null}
+endStream(): Promise<void>
+```
+
+**Returns:** `Promise<void>` - Resolves when the stream has ended.
+
+```typescript theme={null}
+await client.endStream();
+```
+
+### attachToVideo()
+
+Attach the media stream to a video element.
+
+```typescript theme={null}
+attachToVideo(videoElement: HTMLVideoElement | null): HTMLVideoElement | null
+```
+
+|                | Parameter          | Type   | Description                               |
+| -------------- | ------------------ | ------ | ----------------------------------------- |
+| `videoElement` | \`HTMLVideoElement | null\` | The video element to attach the stream to |
+
+**Returns:** The video element for chaining, or `null` if no element provided.
+
+```typescript theme={null}
+const videoEl = document.querySelector('video');
+client.attachToVideo(videoEl);
+```
+
+### getRecording()
+
+<Info>
+  Added in v1.0.0
+</Info>
+
+Get recording URLs for a completed stream.
+
+```typescript theme={null}
+getRecording(streamId: string): Promise<Recording>
+```
+
+| Parameter  | Type     | Description                        |
+| ---------- | -------- | ---------------------------------- |
+| `streamId` | `string` | The stream ID to get recording for |
+
+**Returns:** `Promise<Recording>` - Recording data with presigned URLs.
+
+```typescript theme={null}
+const recording = await client.getRecording('abc-123-def');
+console.log('Video URL:', recording.video_url);
+console.log('Duration:', recording.duration_seconds, 'seconds');
+```
+
+### listStreamRecordings()
+
+<Info>
+  Added in v1.0.0
+</Info>
+
+List the user's stream recordings. Only returns streams that have recordings.
+
+```typescript theme={null}
+listStreamRecordings(options?: ListStreamRecordingsOptions): Promise<StreamRecordingsListResponse>
+```
+
+| Parameter | Type                                                                               | Description                 |
+| --------- | ---------------------------------------------------------------------------------- | --------------------------- |
+| `options` | [`ListStreamRecordingsOptions`](/sdk/javascript/types#liststreamrecordingsoptions) | Optional pagination options |
+
+**Returns:** `Promise<StreamRecordingsListResponse>` - Paginated list of stream recordings.
+
+```typescript theme={null}
+// Get recent recordings
+const { recordings, total } = await client.listStreamRecordings({ limit: 20 });
+
+// Paginate
+const page2 = await client.listStreamRecordings({ limit: 20, offset: 20 });
+```
+
+## Simulate API Methods
+
+<Info>
+  Simulate API methods were added in v1.0.0
+</Info>
+
+The Simulate API allows you to run scripted interactions asynchronously. Unlike the Interactive API, simulations execute in the background and produce recordings you can retrieve when complete.
+
+### simulate()
+
+Create a new simulation job.
+
+```typescript theme={null}
+simulate(options: SimulateOptions): Promise<SimulationJob>
+```
+
+| Parameter | Type                                                       | Description                    |
+| --------- | ---------------------------------------------------------- | ------------------------------ |
+| `options` | [`SimulateOptions`](/sdk/javascript/types#simulateoptions) | Simulation options with script |
+
+**Returns:** `Promise<SimulationJob>` - The created simulation job with ID and initial status.
+
+```typescript theme={null}
+const job = await client.simulate({
+  script: [
+    { timestamp_ms: 0, start: { prompt: 'A cat sitting on a windowsill' } },
+    { timestamp_ms: 3000, interact: { prompt: 'The cat stretches' } },
+    { timestamp_ms: 6000, interact: { prompt: 'The cat yawns' } },
+    { timestamp_ms: 9000, end: {} }
+  ],
+  portrait: true
+});
+console.log('Simulation started:', job.job_id);
+```
+
+### getSimulateStatus()
+
+Get the current status of a simulation job.
+
+```typescript theme={null}
+getSimulateStatus(simulationId: string): Promise<SimulationJobDetail>
+```
+
+| Parameter      | Type     | Description                |
+| -------------- | -------- | -------------------------- |
+| `simulationId` | `string` | The simulation ID to check |
+
+**Returns:** `Promise<SimulationJobDetail>` - Detailed status including streams created.
+
+```typescript theme={null}
+const status = await client.getSimulateStatus(job.job_id);
+console.log('Status:', status.status);
+if (status.status === 'completed') {
+  for (const stream of status.streams) {
+    console.log('Stream:', stream.stream_id);
+  }
+}
+```
+
+### listSimulations()
+
+List simulation jobs for the authenticated user.
+
+```typescript theme={null}
+listSimulations(options?: ListSimulationsOptions): Promise<SimulationJobsList>
+```
+
+| Parameter | Type                                                                     | Description                 |
+| --------- | ------------------------------------------------------------------------ | --------------------------- |
+| `options` | [`ListSimulationsOptions`](/sdk/javascript/types#listsimulationsoptions) | Optional pagination options |
+
+**Returns:** `Promise<SimulationJobsList>` - Paginated list of simulation jobs.
+
+```typescript theme={null}
+const { jobs, total } = await client.listSimulations({ limit: 10 });
+for (const sim of jobs) {
+  console.log(`${sim.job_id}: ${sim.status}`);
+}
+```
+
+### cancelSimulation()
+
+Cancel a pending or running simulation job.
+
+```typescript theme={null}
+cancelSimulation(simulationId: string): Promise<void>
+```
+
+| Parameter      | Type     | Description                 |
+| -------------- | -------- | --------------------------- |
+| `simulationId` | `string` | The simulation ID to cancel |
+
+**Returns:** `Promise<void>` - Resolves when cancelled.
+
+```typescript theme={null}
+await client.cancelSimulation(job.job_id);
+console.log('Simulation cancelled');
+```
+
+<Note>
+  Simulation methods can be called without an active connection. They only require a valid API key.
+</Note>
+
+## Properties
+
+### isConnected
+
+```typescript theme={null}
+get isConnected(): boolean
+```
+
+Whether the client is currently connected and ready.
+
+### currentStatus
+
+```typescript theme={null}
+get currentStatus(): ConnectionStatus
+```
+
+Current connection status.
+
+**Possible values:** `'authenticating'` | `'connecting'` | `'reconnecting'` | `'connected'` | `'disconnected'` | `'failed'`
+
+### currentSessionId
+
+```typescript theme={null}
+get currentSessionId(): string | null
+```
+
+Current session ID, or `null` if not connected.
+
+### mediaStream
+
+```typescript theme={null}
+get mediaStream(): MediaStream | null
+```
+
+Current media stream containing video track from the streamer.
+
+### connectionState
+
+```typescript theme={null}
+get connectionState(): RTCPeerConnectionState | null
+```
+
+Current WebRTC peer connection state.
+
+**Possible values:** `'new'` | `'connecting'` | `'connected'` | `'disconnected'` | `'failed'` | `'closed'` | `null`
+
+### iceConnectionState
+
+```typescript theme={null}
+get iceConnectionState(): RTCIceConnectionState | null
+```
+
+Current ICE connection state.
+
+**Possible values:** `'new'` | `'checking'` | `'connected'` | `'completed'` | `'failed'` | `'disconnected'` | `'closed'` | `null`
+
+
+# React Hook
+Source: https://documentation.api.odyssey.ml/sdk/javascript/react-hook
+
+useOdyssey hook for managing Odyssey client lifecycle in React.
+
+The `useOdyssey` hook provides a convenient way to manage the Odyssey client lifecycle and state in React applications.
+
+## Usage
+
+```typescript theme={null}
+import { useOdyssey } from '@odysseyml/odyssey/react';
+
+function useOdyssey(options: UseOdysseyOptions): OdysseyClient
+```
+
+## Parameters
+
+| Parameter          | Type                                                             | Required | Description          |
+| ------------------ | ---------------------------------------------------------------- | -------- | -------------------- |
+| `options.apiKey`   | `string`                                                         | Yes      | Your Odyssey API key |
+| `options.handlers` | [`UseOdysseyHandlers`](/sdk/javascript/types#useodysseyhandlers) | No       | Event handlers       |
+
+## Return Value
+
+The hook returns an `OdysseyClient` object with the following properties and methods:
+
+### Methods
+
+| Method          | Type                                                         | Description                                                                  |
+| --------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `connect`       | `() => Promise<MediaStream>`                                 | Connect to a session (returns MediaStream when connected, throws on failure) |
+| `disconnect`    | `() => void`                                                 | Disconnect from current session                                              |
+| `startStream`   | `(options?: StartStreamOptions) => Promise<string>`          | Start interactive stream                                                     |
+| `interact`      | `(options: InteractOptions) => Promise<string>`              | Send interaction prompt                                                      |
+| `endStream`     | `() => Promise<void>`                                        | End current stream                                                           |
+| `attachToVideo` | `(el: HTMLVideoElement \| null) => HTMLVideoElement \| null` | Attach stream to video element                                               |
+
+### State
+
+| Property      | Type                                                         | Description                 |
+| ------------- | ------------------------------------------------------------ | --------------------------- |
+| `status`      | [`ConnectionStatus`](/sdk/javascript/types#connectionstatus) | Current connection status   |
+| `error`       | `string \| null`                                             | Current error message       |
+| `isConnected` | `boolean`                                                    | Whether connected and ready |
+| `mediaStream` | `MediaStream \| null`                                        | Video/audio stream          |
+| `sessionId`   | `string \| null`                                             | Current session ID          |
+
+## Basic Example
+
+```tsx theme={null}
+import { useOdyssey } from '@odysseyml/odyssey/react';
+import { useEffect, useRef } from 'react';
+
+function VideoPlayer() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const odyssey = useOdyssey({
+    apiKey: 'ody_your_api_key_here',
+    handlers: {
+      onConnected: (mediaStream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      },
+      onError: (error, fatal) => {
+        console.error('Error:', error.message, 'Fatal:', fatal);
+      },
+      onStreamStarted: (id) => console.log('Started:', id),
+      onInteractAcknowledged: (prompt) => console.log('Ack:', prompt),
+    },
+  });
+
+  useEffect(() => {
+    odyssey.connect()
+      .then(stream => console.log('Connected with stream:', stream.id))
+      .catch(err => console.error('Connection failed:', err.message));
+  }, []);
+
+  return (
+    <div>
+      <video ref={videoRef} autoPlay playsInline muted />
+      <p>Status: {odyssey.status}</p>
+      {odyssey.error && <p>Error: {odyssey.error}</p>}
+      <button onClick={() => odyssey.startStream({ prompt: 'A cat' })}>
+        Start
+      </button>
+      <button onClick={() => odyssey.interact({ prompt: 'Pet the cat' })}>
+        Interact
+      </button>
+    </div>
+  );
+}
+```
+
+## Complete Example
+
+```tsx theme={null}
+import { useEffect, useRef, useState } from 'react';
+import { useOdyssey } from '@odysseyml/odyssey/react';
+
+function App() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [prompt, setPrompt] = useState('');
+
+  const odyssey = useOdyssey({
+    apiKey: 'ody_your_api_key_here',
+    handlers: {
+      onConnected: (mediaStream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.play();
+        }
+      },
+      onDisconnected: () => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+      },
+      onError: (error, fatal) => {
+        console.error('Error:', error.message, 'Fatal:', fatal);
+      },
+      onStreamStarted: (streamId) => {
+        console.log('Stream started:', streamId);
+      },
+      onInteractAcknowledged: (ackPrompt) => {
+        console.log('Interaction acknowledged:', ackPrompt);
+      },
+      onStreamError: (reason, message) => {
+        console.error('Stream error:', reason, message);
+      },
+    },
+  });
+
+  useEffect(() => {
+    odyssey.connect()
+      .then(stream => console.log('Connected with stream:', stream.id))
+      .catch(err => console.error('Connection failed:', err.message));
+    return () => odyssey.disconnect();
+  }, []);
+
+  const handleStart = async () => {
+    await odyssey.startStream({ prompt: 'A cat', portrait: true });
+  };
+
+  const handleInteract = async () => {
+    if (prompt.trim()) {
+      await odyssey.interact({ prompt });
+      setPrompt('');
+    }
+  };
+
+  const handleEnd = async () => {
+    await odyssey.endStream();
+  };
+
+  return (
+    <div>
+      <video ref={videoRef} autoPlay playsInline muted />
+
+      <div>
+        <p>Status: {odyssey.status}</p>
+        {odyssey.error && <p style={{ color: 'red' }}>{odyssey.error}</p>}
+      </div>
+
+      <div>
+        <button onClick={handleStart} disabled={!odyssey.isConnected}>
+          Start Stream
+        </button>
+
+        <input
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Enter interaction prompt..."
+        />
+        <button onClick={handleInteract} disabled={!odyssey.isConnected}>
+          Send
+        </button>
+
+        <button onClick={handleEnd} disabled={!odyssey.isConnected}>
+          End Stream
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+## Tips
+
+<Note>
+  The hook automatically manages cleanup when the component unmounts, but it's good practice to explicitly call `disconnect()` in your cleanup function.
+</Note>
+
+* Always call `connect()` in a `useEffect` hook
+* Use the returned `status` and `error` properties to show connection state to users
+* The `isConnected` property is useful for disabling buttons until the connection is ready
+
+
+# Recordings
+Source: https://documentation.api.odyssey.ml/sdk/javascript/recordings
+
+Working with stream recordings in the Odyssey client.
+
+<Info>
+  Recording features require v1.0.0 or later.
+</Info>
+
+After a stream session ends, you can retrieve recording artifacts including the full video, events log, thumbnail, and preview.
+
+## Capturing the Stream ID
+
+The stream ID is provided in the `onStreamStarted` callback. Save this ID to retrieve recordings later:
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+let currentStreamId: string | null = null;
+
+const connected = await client.connect({
+  onConnected: (mediaStream) => {
+    videoElement.srcObject = mediaStream;
+  },
+  onStreamStarted: (streamId) => {
+    // Save the stream ID for later recording retrieval
+    currentStreamId = streamId;
+    console.log('Stream started:', streamId);
+  },
+});
+
+if (connected) {
+  await client.startStream({ prompt: 'A cat' });
+  // ... interact with the stream ...
+  await client.endStream();
+}
+client.disconnect();
+```
+
+## Retrieving a Recording
+
+Use `getRecording()` with the stream ID to get presigned URLs for the recording artifacts:
+
+```typescript theme={null}
+if (currentStreamId) {
+  const recording = await client.getRecording(currentStreamId);
+
+  if (recording.video_url) {
+    // Play back the recorded video
+    const playbackVideo = document.getElementById('playback') as HTMLVideoElement;
+    playbackVideo.src = recording.video_url;
+  }
+
+  if (recording.events_url) {
+    // Fetch and parse the events log (JSONL format)
+    const response = await fetch(recording.events_url);
+    const text = await response.text();
+    const events = text.trim().split('\n').map(line => JSON.parse(line));
+    console.log('Session events:', events);
+  }
+
+  console.log('Duration:', recording.duration_seconds, 'seconds');
+  console.log('Frames:', recording.frame_count);
+}
+```
+
+<Note>
+  `getRecording()` can be called without an active connection. It only requires a valid API key.
+</Note>
+
+### Recording Properties
+
+| Property           | Type     | Description   |                                        |
+| ------------------ | -------- | ------------- | -------------------------------------- |
+| `stream_id`        | `string` | The stream ID |                                        |
+| `video_url`        | \`string | null\`        | Presigned URL for full recording (MP4) |
+| `events_url`       | \`string | null\`        | Presigned URL for events log (JSONL)   |
+| `thumbnail_url`    | \`string | null\`        | Presigned URL for thumbnail (JPEG)     |
+| `preview_url`      | \`string | null\`        | Presigned URL for preview video (MP4)  |
+| `frame_count`      | \`number | null\`        | Total frames in recording              |
+| `duration_seconds` | \`number | null\`        | Recording duration in seconds          |
+
+<Note>
+  URLs are valid for a limited time (typically 1 hour).
+</Note>
+
+## Listing All Recordings
+
+Use `listStreamRecordings()` to get a paginated list of all your recordings:
+
+```typescript theme={null}
+// Get recent recordings
+const { recordings, total } = await client.listStreamRecordings({ limit: 10 });
+console.log(`Found ${total} recordings`);
+
+for (const rec of recordings) {
+  console.log(`Stream ${rec.stream_id}: ${rec.duration_seconds}s at ${rec.width}x${rec.height}`);
+}
+
+// Paginate through results
+const page2 = await client.listStreamRecordings({ limit: 10, offset: 10 });
+```
+
+### Pagination Options
+
+| Option   | Type     | Default | Description                            |
+| -------- | -------- | ------- | -------------------------------------- |
+| `limit`  | `number` | `50`    | Maximum recordings to return (max 100) |
+| `offset` | `number` | `0`     | Number of recordings to skip           |
+
+## React Example
+
+```tsx theme={null}
+import { useOdyssey } from '@odysseyml/odyssey/react';
+import { useState } from 'react';
+
+function RecordingsViewer() {
+  const odyssey = useOdyssey({ apiKey: 'ody_your_api_key_here' });
+  const [recordings, setRecordings] = useState([]);
+
+  const loadRecordings = async () => {
+    const result = await odyssey.listStreamRecordings({ limit: 20 });
+    setRecordings(result.recordings);
+  };
+
+  const playRecording = async (streamId: string) => {
+    const recording = await odyssey.getRecording(streamId);
+    if (recording.video_url) {
+      window.open(recording.video_url, '_blank');
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={loadRecordings}>Load My Recordings</button>
+      <ul>
+        {recordings.map((rec) => (
+          <li key={rec.stream_id}>
+            {rec.stream_id} - {rec.duration_seconds}s
+            <button onClick={() => playRecording(rec.stream_id)}>Play</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+## Complete Workflow Example
+
+This example shows the full workflow: starting a stream, interacting with it, ending it, and then retrieving the recording:
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+let currentStreamId: string | null = null;
+
+const connected = await client.connect({
+  onConnected: (mediaStream) => {
+    videoElement.srcObject = mediaStream;
+  },
+  onStreamStarted: (streamId) => {
+    currentStreamId = streamId;
+    console.log('Stream started:', streamId);
+  },
+});
+
+if (connected) {
+  // Start an interactive stream
+  await client.startStream({ prompt: 'A cat sitting on a windowsill', portrait: true });
+
+  // Send some interactions
+  await client.interact({ prompt: 'The cat stretches and yawns' });
+  await client.interact({ prompt: 'The cat looks outside at birds' });
+
+  // End the stream
+  await client.endStream();
+}
+
+client.disconnect();
+
+// Retrieve the recording
+if (currentStreamId) {
+  const recording = await client.getRecording(currentStreamId);
+
+  if (recording.video_url) {
+    console.log('Recording available at:', recording.video_url);
+    console.log('Duration:', recording.duration_seconds, 'seconds');
+  }
+}
+```
+
+## Related
+
+<CardGroup>
+  <Card title="Recording Types" icon="code" href="/sdk/javascript/types#recording-types">
+    TypeScript interfaces for recordings
+  </Card>
+
+  <Card title="Odyssey Class" icon="cube" href="/sdk/javascript/odyssey-class#getrecording">
+    getRecording and listStreamRecordings methods
+  </Card>
+</CardGroup>
+
+
+# Simulate API
+Source: https://documentation.api.odyssey.ml/sdk/javascript/simulations
+
+Run scripted video generation asynchronously with the Simulate API.
+
+<Info>
+  The Simulate API requires SDK version 1.0.0 or higher.
+</Info>
+
+The Simulate API allows you to run scripted interactions asynchronously. Unlike the Interactive API where you connect and interact in real-time, simulations execute in the background and produce recordings you can retrieve when complete.
+
+## When to Use the Simulate API
+
+| Use Case                 | Recommended Approach                            |
+| ------------------------ | ----------------------------------------------- |
+| Real-time interaction    | Interactive API (`connect()` + `startStream()`) |
+| Batch video generation   | Simulate API                                    |
+| Pre-scripted sequences   | Simulate API                                    |
+| Background processing    | Simulate API                                    |
+| User-driven interactions | Interactive API                                 |
+
+## Script Format
+
+A simulation script is an array of entries that define the sequence of actions using timestamps:
+
+```typescript theme={null}
+interface ScriptEntry {
+  timestamp_ms: number;           // When this action occurs (milliseconds from start)
+  start?: {                       // Begin a new stream
+    prompt: string;
+    image?: File | Blob | string; // Optional image for image-to-video
+  };
+  interact?: {                    // Send an interaction
+    prompt: string;
+  };
+  end?: Record<string, never>;    // End the stream (empty object)
+}
+```
+
+### Entry Types
+
+| Action     | Fields               | Description                            |
+| ---------- | -------------------- | -------------------------------------- |
+| `start`    | `{ prompt, image? }` | Begin a new stream with initial prompt |
+| `interact` | `{ prompt }`         | Send an interaction prompt             |
+| `end`      | `{}`                 | End the current stream                 |
+
+### Example Script
+
+```typescript theme={null}
+const script = [
+  // Start a portrait video of a cat at t=0
+  { timestamp_ms: 0, start: { prompt: 'A cat sitting by a window' } },
+
+  // Interact at t=3000ms (3 seconds)
+  { timestamp_ms: 3000, interact: { prompt: 'The cat looks outside' } },
+
+  // Another interaction at t=6000ms (6 seconds)
+  { timestamp_ms: 6000, interact: { prompt: 'The cat stretches' } },
+
+  // End the stream at t=9000ms (9 seconds)
+  { timestamp_ms: 9000, end: {} }
+];
+```
+
+## Basic Workflow
+
+### 1. Create a Simulation
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+const job = await client.simulate({
+  script: [
+    { timestamp_ms: 0, start: { prompt: 'A serene mountain landscape' } },
+    { timestamp_ms: 5000, interact: { prompt: 'Clouds roll across the sky' } },
+    { timestamp_ms: 10000, interact: { prompt: 'The sun begins to set' } },
+    { timestamp_ms: 15000, end: {} }
+  ],
+  portrait: false
+});
+
+console.log('Simulation ID:', job.job_id);
+console.log('Status:', job.status); // 'pending'
+```
+
+### 2. Poll for Completion
+
+```typescript theme={null}
+async function waitForCompletion(client, jobId) {
+  while (true) {
+    const status = await client.getSimulateStatus(jobId);
+
+    if (status.status === 'completed') {
+      return status;
+    }
+
+    if (status.status === 'failed') {
+      throw new Error(`Simulation failed: ${status.error_message}`);
+    }
+
+    if (status.status === 'cancelled') {
+      throw new Error('Simulation was cancelled');
+    }
+
+    // Wait 5 seconds before checking again
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+}
+
+const result = await waitForCompletion(client, job.job_id);
+console.log('Simulation completed!');
+```
+
+### 3. Retrieve Recordings
+
+```typescript theme={null}
+// Get the stream IDs from the completed simulation
+for (const stream of result.streams) {
+  const recording = await client.getRecording(stream.stream_id);
+  console.log('Video URL:', recording.video_url);
+  console.log('Duration:', recording.duration_seconds, 'seconds');
+}
+```
+
+## Image-to-Video with the Simulate API
+
+You can start a simulation with an image:
+
+```typescript theme={null}
+const imageFile = document.querySelector('input[type="file"]').files[0];
+
+const job = await client.simulate({
+  script: [
+    {
+      timestamp_ms: 0,
+      start: {
+        prompt: 'A cat',
+        image: imageFile
+      }
+    },
+    { timestamp_ms: 3000, interact: { prompt: 'The cat looks around' } },
+    { timestamp_ms: 6000, end: {} }
+  ],
+  portrait: false
+});
+```
+
+You can also use a base64 data URL string:
+
+```typescript theme={null}
+const job = await client.simulate({
+  script: [
+    {
+      timestamp_ms: 0,
+      start: {
+        prompt: 'Robot dancing',
+        image: 'data:image/png;base64,iVBORw0KGgo...'
+      }
+    },
+    { timestamp_ms: 10000, end: {} }
+  ]
+});
+```
+
+## Managing Simulation Jobs
+
+### List Your Simulation Jobs
+
+```typescript theme={null}
+const { jobs, total } = await client.listSimulations({ limit: 10 });
+
+for (const sim of jobs) {
+  console.log(`${sim.job_id}: ${sim.status} (created: ${sim.created_at})`);
+}
+
+console.log(`Showing ${jobs.length} of ${total} total simulations`);
+```
+
+### Cancel a Simulation
+
+```typescript theme={null}
+// Cancel a pending or running simulation
+await client.cancelSimulation(job.job_id);
+console.log('Simulation cancelled');
+```
+
+## Complete Example
+
+```typescript theme={null}
+import { Odyssey } from '@odysseyml/odyssey';
+
+async function runSimulation() {
+  const client = new Odyssey({ apiKey: 'ody_your_api_key_here' });
+
+  // Create simulation
+  const job = await client.simulate({
+    script: [
+      { timestamp_ms: 0, start: { prompt: 'A cat sitting on a windowsill' } },
+      { timestamp_ms: 3000, interact: { prompt: 'The cat watches a bird outside' } },
+      { timestamp_ms: 6000, interact: { prompt: 'The cat stretches lazily' } },
+      { timestamp_ms: 9000, interact: { prompt: 'The cat curls up to sleep' } },
+      { timestamp_ms: 12000, end: {} }
+    ],
+    portrait: true
+  });
+
+  console.log('Started simulation:', job.job_id);
+
+  // Poll for completion
+  let status;
+  do {
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    status = await client.getSimulateStatus(job.job_id);
+    console.log('Status:', status.status);
+  } while (status.status === 'pending' || status.status === 'running');
+
+  if (status.status === 'completed') {
+    // Download recordings
+    for (const stream of status.streams) {
+      const recording = await client.getRecording(stream.stream_id);
+      console.log('Recording ready:', recording.video_url);
+    }
+  } else {
+    console.error('Simulation failed:', status.error_message);
+  }
+}
+
+runSimulation();
+```
+
+## Error Handling
+
+```typescript theme={null}
+try {
+  const job = await client.simulate({
+    script: [
+      { timestamp_ms: 0, start: { prompt: 'A sunset over the ocean' } },
+      { timestamp_ms: 5000, end: {} }
+    ]
+  });
+
+  const status = await client.getSimulateStatus(job.job_id);
+
+  if (status.status === 'failed') {
+    console.error('Job failed:', status.error_message);
+
+    // Check individual streams for errors
+    for (const stream of status.streams) {
+      if (stream.status === 'failed') {
+        console.error(`Stream ${stream.stream_id} failed:`, stream.error_message);
+      }
+    }
+  }
+} catch (error) {
+  console.error('API error:', error.message);
+}
+```
+
+
+# Types & Interfaces
+Source: https://documentation.api.odyssey.ml/sdk/javascript/types
+
+TypeScript types and interfaces for the Odyssey client.
+
+## Event Handlers
+
+### OdysseyEventHandlers
+
+Event handlers for the Odyssey client class.
+
+```typescript theme={null}
+interface OdysseyEventHandlers {
+  onConnected?: (mediaStream: MediaStream) => void;
+  onDisconnected?: () => void;
+  onStreamStarted?: (streamId: string) => void;
+  onStreamEnded?: () => void;
+  onInteractAcknowledged?: (prompt: string) => void;
+  onStreamError?: (reason: string, message: string) => void;
+  onError?: (error: Error, fatal: boolean) => void;
+  onStatusChange?: (status: ConnectionStatus, message?: string) => void;
+}
+```
+
+| Handler                  | Parameters                                   | Description                                                                   |
+| ------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------- |
+| `onConnected`            | `mediaStream: MediaStream`                   | Called when video stream is established                                       |
+| `onDisconnected`         | -                                            | Called when video stream is closed                                            |
+| `onStreamStarted`        | `streamId: string`                           | Called when interactive stream is ready (streamId can be used for recordings) |
+| `onStreamEnded`          | -                                            | Called when interactive stream has ended                                      |
+| `onInteractAcknowledged` | `prompt: string`                             | Called when interaction is processed                                          |
+| `onStreamError`          | `reason: string, message: string`            | Called on stream error (e.g., model crash)                                    |
+| `onError`                | `error: Error, fatal: boolean`               | Called on general error                                                       |
+| `onStatusChange`         | `status: ConnectionStatus, message?: string` | Called when connection status changes                                         |
+
+### UseOdysseyHandlers
+
+Event handlers for the `useOdyssey` React hook. Same interface as `OdysseyEventHandlers`.
+
+```typescript theme={null}
+type UseOdysseyHandlers = OdysseyEventHandlers;
+```
+
+### UseOdysseyOptions
+
+Configuration for the `useOdyssey` React hook.
+
+```typescript theme={null}
+interface UseOdysseyOptions {
+  /** API key for authentication (required) */
+  apiKey: string;
+  /** Event handlers (optional) */
+  handlers?: UseOdysseyHandlers;
+}
+```
+
+| Property   | Type                 | Required | Description          |
+| ---------- | -------------------- | -------- | -------------------- |
+| `apiKey`   | `string`             | Yes      | Your Odyssey API key |
+| `handlers` | `UseOdysseyHandlers` | No       | Event handlers       |
+
+## Configuration
+
+### ClientConfig
+
+Configuration for the Odyssey client constructor.
+
+```typescript theme={null}
+interface ClientConfig {
+  /** API key for authentication (required) */
+  apiKey: string;
+}
+```
+
+| Property | Type     | Description                |
+| -------- | -------- | -------------------------- |
+| `apiKey` | `string` | API key for authentication |
+
+## Status Types
+
+### ConnectionStatus
+
+```typescript theme={null}
+type ConnectionStatus =
+  | 'authenticating'  // Authenticating with Odyssey API
+  | 'connecting'      // Connecting to streaming server
+  | 'reconnecting'    // Reconnecting after disconnect
+  | 'connected'       // Connected and ready
+  | 'disconnected'    // Disconnected (clean)
+  | 'failed';         // Connection failed (fatal)
+```
+
+## Recording Types
+
+<Info>Recording types were added in v1.0.0</Info>
+
+### Recording
+
+Recording data returned from `getRecording()`.
+
+```typescript theme={null}
+interface Recording {
+  stream_id: string;
+  video_url: string | null;
+  events_url: string | null;
+  thumbnail_url: string | null;
+  preview_url: string | null;
+  frame_count: number | null;
+  duration_seconds: number | null;
+}
+```
+
+| Property           | Type             | Description                                      |
+| ------------------ | ---------------- | ------------------------------------------------ |
+| `stream_id`        | `string`         | The stream ID (unique per startStream/endStream) |
+| `video_url`        | `string \| null` | Presigned URL for full recording video (MP4)     |
+| `events_url`       | `string \| null` | Presigned URL for events log (JSONL)             |
+| `thumbnail_url`    | `string \| null` | Presigned URL for thumbnail image (JPEG)         |
+| `preview_url`      | `string \| null` | Presigned URL for preview video (MP4)            |
+| `frame_count`      | `number \| null` | Total frames in recording                        |
+| `duration_seconds` | `number \| null` | Recording duration in seconds                    |
+
+<Note>
+  URLs are valid for a limited time (typically 1 hour).
+</Note>
+
+### StreamRecordingSummary
+
+Summary of a stream recording returned in `listStreamRecordings()`.
+
+```typescript theme={null}
+interface StreamRecordingSummary {
+  stream_id: string;
+  width: number;
+  height: number;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number | null;
+}
+```
+
+| Property           | Type             | Description                                          |
+| ------------------ | ---------------- | ---------------------------------------------------- |
+| `stream_id`        | `string`         | Unique stream identifier (per startStream/endStream) |
+| `width`            | `number`         | Stream resolution width                              |
+| `height`           | `number`         | Stream resolution height                             |
+| `started_at`       | `string`         | ISO timestamp when stream started                    |
+| `ended_at`         | `string \| null` | ISO timestamp when stream ended                      |
+| `duration_seconds` | `number \| null` | Stream duration in seconds                           |
+
+### ListStreamRecordingsOptions
+
+Options for `listStreamRecordings()`.
+
+```typescript theme={null}
+interface ListStreamRecordingsOptions {
+  limit?: number;
+  offset?: number;
+}
+```
+
+| Property | Type     | Default | Description                               |
+| -------- | -------- | ------- | ----------------------------------------- |
+| `limit`  | `number` | `50`    | Maximum recordings to return (max 100)    |
+| `offset` | `number` | `0`     | Number of recordings to skip (pagination) |
+
+### StreamRecordingsListResponse
+
+Response from `listStreamRecordings()`.
+
+```typescript theme={null}
+interface StreamRecordingsListResponse {
+  recordings: StreamRecordingSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+```
+
+| Property     | Type                       | Description                         |
+| ------------ | -------------------------- | ----------------------------------- |
+| `recordings` | `StreamRecordingSummary[]` | Array of stream recording summaries |
+| `total`      | `number`                   | Total recordings available          |
+| `limit`      | `number`                   | Limit used in request               |
+| `offset`     | `number`                   | Offset used in request              |
+
+## Simulate API Types
+
+<Info>Simulate API types were added in v1.0.0</Info>
+
+### SimulationJobStatus
+
+Status of a simulation job.
+
+```typescript theme={null}
+type SimulationJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+```
+
+| Status      | Description                        |
+| ----------- | ---------------------------------- |
+| `pending`   | Job is queued and waiting to start |
+| `running`   | Job is currently executing         |
+| `completed` | Job finished successfully          |
+| `failed`    | Job encountered an error           |
+| `cancelled` | Job was cancelled by user          |
+
+### ScriptEntry
+
+An entry in a simulation script.
+
+```typescript theme={null}
+interface ScriptEntry {
+  timestamp_ms: number;           // When this action occurs (milliseconds from start)
+  start?: {                       // Begin a new stream
+    prompt: string;
+    image?: File | Blob | string; // Optional image for image-to-video
+  };
+  interact?: {                    // Send an interaction
+    prompt: string;
+  };
+  end?: Record<string, never>;    // End the stream (empty object)
+}
+```
+
+| Property       | Type                                                 | Description                                       |
+| -------------- | ---------------------------------------------------- | ------------------------------------------------- |
+| `timestamp_ms` | `number`                                             | When this action occurs (milliseconds from start) |
+| `start`        | `{ prompt: string; image?: File \| Blob \| string }` | Begin a new stream with initial prompt            |
+| `interact`     | `{ prompt: string }`                                 | Send an interaction prompt                        |
+| `end`          | `{}`                                                 | End the current stream (empty object)             |
+
+### SimulateOptions
+
+Options for `simulate()`.
+
+```typescript theme={null}
+interface SimulateOptions {
+  script: ScriptEntry[];
+  portrait?: boolean;  // true for portrait (704x1280), false for landscape (1280x704)
+}
+```
+
+| Property   | Type            | Description                        |
+| ---------- | --------------- | ---------------------------------- |
+| `script`   | `ScriptEntry[]` | Array of script entries to execute |
+| `portrait` | `boolean`       | Portrait mode (default: true)      |
+
+### SimulationStream
+
+Information about a stream within a simulation.
+
+```typescript theme={null}
+interface SimulationStream {
+  stream_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  error_message: string | null;
+}
+```
+
+| Property        | Type             | Description              |
+| --------------- | ---------------- | ------------------------ |
+| `stream_id`     | `string`         | Unique stream identifier |
+| `status`        | `string`         | Status of this stream    |
+| `error_message` | `string \| null` | Error message if failed  |
+
+### SimulationJob
+
+Response from `simulate()`.
+
+```typescript theme={null}
+interface SimulationJob {
+  job_id: string;
+  status: SimulationJobStatus;
+  priority: string;
+  created_at: string;
+  estimated_wait_minutes: number | null;
+}
+```
+
+| Property                 | Type                  | Description                        |
+| ------------------------ | --------------------- | ---------------------------------- |
+| `job_id`                 | `string`              | Unique identifier for the job      |
+| `status`                 | `SimulationJobStatus` | Current job status                 |
+| `priority`               | `string`              | Job priority                       |
+| `created_at`             | `string`              | ISO timestamp when job was created |
+| `estimated_wait_minutes` | `number \| null`      | Estimated wait time in minutes     |
+
+### SimulationJobDetail
+
+Detailed information about a simulation job from `getSimulateStatus()`.
+
+```typescript theme={null}
+interface SimulationJobDetail {
+  job_id: string;
+  status: SimulationJobStatus;
+  priority: string;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+  streams: SimulationStream[];
+}
+```
+
+| Property        | Type                  | Description                            |
+| --------------- | --------------------- | -------------------------------------- |
+| `job_id`        | `string`              | Unique identifier for the job          |
+| `status`        | `SimulationJobStatus` | Current job status                     |
+| `priority`      | `string`              | Job priority                           |
+| `created_at`    | `string`              | ISO timestamp when job was created     |
+| `started_at`    | `string \| null`      | ISO timestamp when job started running |
+| `completed_at`  | `string \| null`      | ISO timestamp when job completed       |
+| `error_message` | `string \| null`      | Error message if job failed            |
+| `streams`       | `SimulationStream[]`  | Streams created during simulation      |
+
+### SimulationJobInfo
+
+Summary information for a simulation job in a list.
+
+```typescript theme={null}
+interface SimulationJobInfo {
+  job_id: string;
+  status: SimulationJobStatus;
+  priority: string;
+  created_at: string;
+  completed_at: string | null;
+  error_message: string | null;
+}
+```
+
+| Property        | Type                  | Description                        |
+| --------------- | --------------------- | ---------------------------------- |
+| `job_id`        | `string`              | Unique identifier for the job      |
+| `status`        | `SimulationJobStatus` | Current job status                 |
+| `priority`      | `string`              | Job priority                       |
+| `created_at`    | `string`              | ISO timestamp when job was created |
+| `completed_at`  | `string \| null`      | ISO timestamp when job completed   |
+| `error_message` | `string \| null`      | Error message if job failed        |
+
+### ListSimulationsOptions
+
+Options for `listSimulations()`.
+
+```typescript theme={null}
+interface ListSimulationsOptions {
+  limit?: number;
+  offset?: number;
+}
+```
+
+| Property | Type     | Default | Description                         |
+| -------- | -------- | ------- | ----------------------------------- |
+| `limit`  | `number` | `50`    | Maximum jobs to return (max 100)    |
+| `offset` | `number` | `0`     | Number of jobs to skip (pagination) |
+
+### SimulationJobsList
+
+Response from `listSimulations()`.
+
+```typescript theme={null}
+interface SimulationJobsList {
+  jobs: SimulationJobInfo[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+```
+
+| Property | Type                  | Description                       |
+| -------- | --------------------- | --------------------------------- |
+| `jobs`   | `SimulationJobInfo[]` | Array of simulation job summaries |
+| `total`  | `number`              | Total jobs available              |
+| `limit`  | `number`              | Limit used in request             |
+| `offset` | `number`              | Offset used in request            |
+
+## Error Handling
+
+### Fatal vs Non-Fatal Errors
+
+The `onError` handler receives a `fatal` boolean parameter:
+
+| Fatal   | Description                | Action Required             |
+| ------- | -------------------------- | --------------------------- |
+| `true`  | Connection cannot continue | Return user to connect page |
+| `false` | Recoverable error          | May retry or notify user    |
+
+### Common Error Messages
+
+| Error                                                 | Description                                                              |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| `Odyssey: config object is required...`               | Constructor called without a config object                               |
+| `Odyssey: apiKey is required and must be a string...` | API key is missing, undefined, or not a string                           |
+| `Odyssey: apiKey cannot be empty...`                  | API key is an empty string                                               |
+| `Invalid API key`                                     | The provided API key is invalid (401)                                    |
+| `Invalid API key format...`                           | API key format is malformed (422)                                        |
+| `API key access denied`                               | The API key is valid but access is denied (403, e.g., suspended account) |
+| `Maximum concurrent sessions (N) reached`             | Concurrent session quota exceeded (429)                                  |
+| `No available sessions`                               | No streamers available, try again later                                  |
+| `Streamer not available`                              | Assigned streamer is not responding                                      |
+| `Streamer disconnected`                               | Streamer disconnected during session                                     |
+| `Timed out waiting for a streamer`                    | Queue timeout expired while waiting for a streamer                       |
+
+## TypeScript Exports
+
+```typescript theme={null}
+// Main entry point (@odysseyml/odyssey)
+export { Odyssey } from './odyssey';
+export type { OdysseyEventHandlers, ConnectionStatus, ClientConfig, OdysseyClient } from './types';
+
+// React entry point (@odysseyml/odyssey/react)
+export { useOdyssey } from './useOdyssey';
+export type { UseOdysseyHandlers, OdysseyClient } from './types';
+```
+
+## Browser Compatibility
+
+| Browser     | Minimum Version |
+| ----------- | --------------- |
+| Chrome/Edge | 90+             |
+| Firefox     | 88+             |
+| Safari      | 14.1+           |
+
+<Note>
+  Requires WebRTC support (`RTCPeerConnection`, `RTCDataChannel`)
+</Note>
+
+
+# Odyssey Client
+Source: https://documentation.api.odyssey.ml/sdk/python/client
+
+Main client class for interacting with Odyssey's audio-visual intelligence.
+
+The main client class for connecting to Odyssey's audio-visual intelligence platform.
+
+## Constructor
+
+```python theme={null}
+Odyssey(api_key: str, **kwargs)
+```
+
+Creates a new Odyssey client instance with the provided API key.
+
+| Parameter  | Type  | Description                           |
+| ---------- | ----- | ------------------------------------- |
+| `api_key`  | `str` | API key for authentication (required) |
+| `**kwargs` |       | Additional configuration options      |
+
+```python theme={null}
+from odyssey import Odyssey
+
+client = Odyssey(api_key="ody_your_api_key_here")
+```
+
+## Methods
+
+### connect()
+
+Connect to a streaming session. The Odyssey API automatically assigns an available session.
+
+```python theme={null}
+async def connect(
+    on_connected: Callable[[], None] | None = None,
+    on_disconnected: Callable[[], None] | None = None,
+    on_video_frame: Callable[[VideoFrame], None] | None = None,
+    on_stream_started: Callable[[str], None] | None = None,
+    on_stream_ended: Callable[[], None] | None = None,
+    on_interact_acknowledged: Callable[[str], None] | None = None,
+    on_stream_error: Callable[[str, str], None] | None = None,
+    on_error: Callable[[Exception, bool], None] | None = None,
+    on_status_change: Callable[[ConnectionStatus, str | None], None] | None = None,
+) -> None
+```
+
+| Parameter                  | Type                                              | Description                                     |
+| -------------------------- | ------------------------------------------------- | ----------------------------------------------- |
+| `on_connected`             | `Callable[[], None]`                              | Called when connection is established           |
+| `on_disconnected`          | `Callable[[], None]`                              | Called when connection is closed                |
+| `on_video_frame`           | `Callable[[VideoFrame], None]`                    | Called for each video frame                     |
+| `on_stream_started`        | `Callable[[str], None]`                           | Called when stream starts (receives stream\_id) |
+| `on_stream_ended`          | `Callable[[], None]`                              | Called when stream ends                         |
+| `on_interact_acknowledged` | `Callable[[str], None]`                           | Called when interaction is acknowledged         |
+| `on_stream_error`          | `Callable[[str, str], None]`                      | Called on stream error (reason, message)        |
+| `on_error`                 | `Callable[[Exception, bool], None]`               | Called on error (error, fatal)                  |
+| `on_status_change`         | `Callable[[ConnectionStatus, str \| None], None]` | Called on status change                         |
+
+**Raises:**
+
+| Exception                | Description                                     |
+| ------------------------ | ----------------------------------------------- |
+| `OdysseyAuthError`       | Authentication failed (invalid API key)         |
+| `OdysseyConnectionError` | Connection failed (no streamers, timeout, etc.) |
+
+```python theme={null}
+try:
+    await client.connect(
+        on_video_frame=lambda frame: process_frame(frame),
+        on_stream_error=lambda reason, msg: print(f"Stream error: {reason} - {msg}"),
+        on_status_change=lambda status, msg: print(f"Status: {status.value}"),
+    )
+except OdysseyAuthError:
+    print("Invalid API key")
+except OdysseyConnectionError as e:
+    print(f"Connection failed: {e}")
+```
+
+### disconnect()
+
+Disconnect from the session and clean up resources.
+
+```python theme={null}
+async def disconnect() -> None
+```
+
+```python theme={null}
+await client.disconnect()
+```
+
+### start\_stream()
+
+Start an interactive stream session.
+
+```python theme={null}
+async def start_stream(
+    prompt: str = "",
+    portrait: bool = True,
+    image: str | bytes | Image.Image | np.ndarray | None = None,
+    image_path: str | None = None  # deprecated
+) -> str
+```
+
+| Parameter    | Type                                                | Default | Description                                                                                     |
+| ------------ | --------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------- |
+| `prompt`     | `str`                                               | `""`    | Initial prompt to generate video content                                                        |
+| `portrait`   | `bool`                                              | `True`  | `True` for portrait (704x1280), `False` for landscape (1280x704). Resolution may vary by model. |
+| `image`      | `str \| bytes \| Image.Image \| np.ndarray \| None` | `None`  | Image for image-to-video generation (see formats below)                                         |
+| `image_path` | `str \| None`                                       | `None`  | **Deprecated.** Use `image` instead.                                                            |
+
+**Supported image formats for the `image` parameter:**
+
+| Type              | Description                          |
+| ----------------- | ------------------------------------ |
+| `str`             | File path to an image                |
+| `bytes`           | Raw image bytes                      |
+| `PIL.Image.Image` | PIL Image object                     |
+| `np.ndarray`      | NumPy array (RGB uint8, shape HxWx3) |
+
+**Returns:** `str` - Stream ID when the stream is ready. Use this ID to retrieve recordings.
+
+**Raises:** `OdysseyStreamError` - If not connected or stream fails to start.
+
+```python theme={null}
+try:
+    stream_id = await client.start_stream("A cat", portrait=True)
+    print(f"Stream started: {stream_id}")
+except OdysseyStreamError as e:
+    print(f"Failed to start stream: {e}")
+```
+
+<Info>
+  **Image-to-video requirements:**
+
+  * SDK version 1.0.0+
+  * Max size: 25MB
+  * Supported formats: JPEG, PNG, WebP, GIF, BMP, HEIC, HEIF, AVIF
+  * Images are resized to 1280x704 (landscape) or 704x1280 (portrait)
+</Info>
+
+```python theme={null}
+# Image-to-video examples
+await client.connect(on_video_frame=process_frame)
+
+# Using a file path
+stream_id = await client.start_stream(
+    prompt="A cat",
+    portrait=False,
+    image="/path/to/image.jpg"
+)
+
+# Using PIL Image
+from PIL import Image
+pil_image = Image.open("/path/to/image.jpg")
+stream_id = await client.start_stream(prompt="A cat", image=pil_image)
+
+# Using bytes
+with open("/path/to/image.jpg", "rb") as f:
+    image_bytes = f.read()
+stream_id = await client.start_stream(prompt="A cat", image=image_bytes)
+```
+
+### interact()
+
+Send an interaction prompt to update the video content.
+
+```python theme={null}
+async def interact(prompt: str) -> str
+```
+
+| Parameter | Type  | Description            |
+| --------- | ----- | ---------------------- |
+| `prompt`  | `str` | The interaction prompt |
+
+**Returns:** `str` - The acknowledged prompt when processed.
+
+**Raises:** `OdysseyStreamError` - If not connected or no active stream.
+
+```python theme={null}
+try:
+    ack_prompt = await client.interact("Pet the cat")
+    print(f"Interaction acknowledged: {ack_prompt}")
+except OdysseyStreamError as e:
+    print(f"Failed to interact: {e}")
+```
+
+### end\_stream()
+
+End the current interactive stream session.
+
+```python theme={null}
+async def end_stream() -> None
+```
+
+**Raises:** `OdysseyStreamError` - If not connected.
+
+```python theme={null}
+await client.end_stream()
+```
+
+### get\_recording()
+
+Get recording data for a stream with presigned URLs.
+
+```python theme={null}
+async def get_recording(stream_id: str) -> Recording
+```
+
+| Parameter   | Type  | Description                                              |
+| ----------- | ----- | -------------------------------------------------------- |
+| `stream_id` | `str` | The stream ID to get recording for (from `start_stream`) |
+
+**Returns:** [`Recording`](/sdk/python/types#recording) - Recording data with presigned URLs valid for \~1 hour.
+
+<Note>
+  This method can be called without an active connection. It only requires a valid API key.
+</Note>
+
+```python theme={null}
+recording = await client.get_recording("stream-123")
+if recording.video_url:
+    print(f"Video: {recording.video_url}")
+    print(f"Duration: {recording.duration_seconds}s")
+```
+
+### list\_stream\_recordings()
+
+List stream recordings for the authenticated user.
+
+```python theme={null}
+async def list_stream_recordings(
+    limit: int | None = None,
+    offset: int | None = None
+) -> StreamRecordingsList
+```
+
+| Parameter | Type          | Default | Description                                 |
+| --------- | ------------- | ------- | ------------------------------------------- |
+| `limit`   | `int \| None` | `None`  | Maximum number of recordings to return      |
+| `offset`  | `int \| None` | `None`  | Number of recordings to skip for pagination |
+
+**Returns:** [`StreamRecordingsList`](/sdk/python/types#streamrecordingslist) - Paginated list of stream recordings.
+
+<Note>
+  This method can be called without an active connection. It only requires a valid API key.
+</Note>
+
+```python theme={null}
+result = await client.list_stream_recordings(limit=10)
+for rec in result.recordings:
+    print(f"{rec.stream_id}: {rec.duration_seconds}s ({rec.width}x{rec.height})")
+print(f"Total: {result.total}")
+```
+
+## Simulate API Methods
+
+<Info>Simulate API methods were added in v1.0.0</Info>
+
+The Simulate API allows you to run scripted interactions asynchronously. Unlike the Interactive API, simulations execute in the background and produce recordings you can retrieve when complete.
+
+### simulate()
+
+Create a new simulation job.
+
+```python theme={null}
+async def simulate(
+    script: list[dict],
+    portrait: bool = True
+) -> SimulationJobInfo
+```
+
+| Parameter  | Type         | Description                       |
+| ---------- | ------------ | --------------------------------- |
+| `script`   | `list[dict]` | List of script entries to execute |
+| `portrait` | `bool`       | Portrait mode (default: True)     |
+
+**Script entry format:**
+
+| Key            | Type   | Description                                                      |
+| -------------- | ------ | ---------------------------------------------------------------- |
+| `timestamp_ms` | `int`  | When this action occurs (milliseconds from start)                |
+| `start`        | `dict` | `{ "prompt": str, "image"?: str \| bytes }` - Begin a new stream |
+| `interact`     | `dict` | `{ "prompt": str }` - Send an interaction prompt                 |
+| `end`          | `dict` | `{}` - End the current stream (empty dict)                       |
+
+**Returns:** `SimulationJobInfo` - The created simulation job with ID and initial status.
+
+```python theme={null}
+job = await client.simulate(
+    script=[
+        {"timestamp_ms": 0, "start": {"prompt": "A cat sitting on a windowsill"}},
+        {"timestamp_ms": 3000, "interact": {"prompt": "The cat stretches"}},
+        {"timestamp_ms": 6000, "interact": {"prompt": "The cat yawns"}},
+        {"timestamp_ms": 9000, "end": {}}
+    ],
+    portrait=True
+)
+print(f"Simulation started: {job.job_id}")
+```
+
+### get\_simulate\_status()
+
+Get the current status of a simulation job.
+
+```python theme={null}
+async def get_simulate_status(job_id: str) -> SimulationJobDetail
+```
+
+| Parameter | Type  | Description         |
+| --------- | ----- | ------------------- |
+| `job_id`  | `str` | The job ID to check |
+
+**Returns:** [`SimulationJobDetail`](/sdk/python/types#simulationjobdetail) - Detailed status including streams created.
+
+```python theme={null}
+status = await client.get_simulate_status(job.job_id)
+print(f"Status: {status.status}")
+if status.status == "completed":
+    for stream in status.streams:
+        print(f"Stream: {stream.stream_id}")
+```
+
+### list\_simulations()
+
+List simulation jobs for the authenticated user.
+
+```python theme={null}
+async def list_simulations(
+    limit: int | None = None,
+    offset: int | None = None
+) -> SimulationJobsList
+```
+
+| Parameter | Type          | Default | Description                           |
+| --------- | ------------- | ------- | ------------------------------------- |
+| `limit`   | `int \| None` | `None`  | Maximum jobs to return                |
+| `offset`  | `int \| None` | `None`  | Number of jobs to skip for pagination |
+
+**Returns:** [`SimulationJobsList`](/sdk/python/types#simulationjobslist) - Paginated list of simulation jobs.
+
+```python theme={null}
+result = await client.list_simulations(limit=10)
+for sim in result.jobs:
+    print(f"{sim.job_id}: {sim.status}")
+print(f"Total: {result.total}")
+```
+
+### cancel\_simulation()
+
+Cancel a pending or running simulation job.
+
+```python theme={null}
+async def cancel_simulation(job_id: str) -> None
+```
+
+| Parameter | Type  | Description          |
+| --------- | ----- | -------------------- |
+| `job_id`  | `str` | The job ID to cancel |
+
+```python theme={null}
+await client.cancel_simulation(job.job_id)
+print("Simulation cancelled")
+```
+
+<Note>
+  Simulation methods can be called without an active connection. They only require a valid API key.
+</Note>
+
+## Properties
+
+### is\_connected
+
+```python theme={null}
+@property
+def is_connected(self) -> bool
+```
+
+Whether the client is currently connected and ready.
+
+### current\_status
+
+```python theme={null}
+@property
+def current_status(self) -> ConnectionStatus
+```
+
+Current connection status.
+
+**Possible values:** `AUTHENTICATING`, `CONNECTING`, `RECONNECTING`, `CONNECTED`, `DISCONNECTED`, `FAILED`
+
+### current\_session\_id
+
+```python theme={null}
+@property
+def current_session_id(self) -> str | None
+```
+
+Current session ID, or `None` if not connected.
+
+
+# Examples
+Source: https://documentation.api.odyssey.ml/sdk/python/examples
+
+Complete usage examples for the Odyssey Python client.
+
+## Complete Application with OpenCV
+
+```python theme={null}
+import asyncio
+import cv2
+from odyssey import (
+    Odyssey, VideoFrame, ConnectionStatus,
+    OdysseyAuthError, OdysseyConnectionError, OdysseyStreamError,
+)
+
+class VideoApp:
+    def __init__(self, api_key: str):
+        self.client = Odyssey(api_key=api_key)
+        self.current_frame = None
+        self.running = True
+
+    def on_frame(self, frame: VideoFrame) -> None:
+        self.current_frame = cv2.cvtColor(frame.data, cv2.COLOR_RGB2BGR)
+
+    def on_status(self, status: ConnectionStatus, message: str | None) -> None:
+        print(f"Status: {status.value} - {message or ''}")
+
+    def on_stream_error(self, reason: str, message: str) -> None:
+        print(f"Stream error: {reason} - {message}")
+
+    async def run(self) -> None:
+        try:
+            await self.client.connect(
+                on_video_frame=self.on_frame,
+                on_stream_error=self.on_stream_error,
+                on_status_change=self.on_status,
+            )
+
+            await self.client.start_stream("A serene mountain landscape")
+
+            while self.running:
+                if self.current_frame is not None:
+                    cv2.imshow("Odyssey", self.current_frame)
+
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    self.running = False
+                elif key == ord("i"):
+                    await self.client.interact("Add a waterfall")
+
+                await asyncio.sleep(0.01)
+
+            await self.client.end_stream()
+        except OdysseyAuthError:
+            print("Invalid API key")
+        except OdysseyConnectionError as e:
+            print(f"Connection failed: {e}")
+        except OdysseyStreamError as e:
+            print(f"Stream error: {e}")
+        finally:
+            await self.client.disconnect()
+            cv2.destroyAllWindows()
+
+async def main():
+    app = VideoApp(api_key="ody_your_api_key_here")
+    await app.run()
+
+asyncio.run(main())
+```
+
+## Headless Processing
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey, VideoFrame, OdysseyConnectionError
+
+frames_collected = []
+
+def collect_frame(frame: VideoFrame) -> None:
+    frames_collected.append(frame.data.copy())
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    try:
+        await client.connect(on_video_frame=collect_frame)
+        await client.start_stream("A busy city street")
+
+        # Collect frames for 10 seconds
+        await asyncio.sleep(10)
+
+        await client.end_stream()
+    except OdysseyConnectionError as e:
+        print(f"Connection failed: {e}")
+    finally:
+        await client.disconnect()
+
+    print(f"Collected {len(frames_collected)} frames")
+    # Process frames with your ML model...
+
+asyncio.run(main())
+```
+
+## Status Monitoring
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey, ConnectionStatus
+
+def on_status_change(status: ConnectionStatus, message: str | None) -> None:
+    match status:
+        case ConnectionStatus.AUTHENTICATING:
+            print("Authenticating...")
+        case ConnectionStatus.CONNECTING:
+            print("Connecting to server...")
+        case ConnectionStatus.RECONNECTING:
+            print("Reconnecting...")
+        case ConnectionStatus.CONNECTED:
+            print("Connected and ready!")
+        case ConnectionStatus.DISCONNECTED:
+            print("Disconnected")
+        case ConnectionStatus.FAILED:
+            print(f"Connection failed: {message or 'Unknown error'}")
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    await client.connect(
+        on_video_frame=lambda f: None,
+        on_status_change=on_status_change,
+    )
+
+    # ... use the client ...
+
+    await client.disconnect()
+
+asyncio.run(main())
+```
+
+## Error Handling Pattern
+
+```python theme={null}
+import asyncio
+from odyssey import (
+    Odyssey,
+    OdysseyAuthError,
+    OdysseyConnectionError,
+    OdysseyStreamError,
+)
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    try:
+        await client.connect(
+            on_video_frame=lambda f: None,
+            on_stream_error=lambda reason, msg: print(f"Stream error: {reason} - {msg}"),
+            on_error=lambda err, fatal: print(f"Error (fatal={fatal}): {err}"),
+        )
+
+        stream_id = await client.start_stream("A forest scene")
+        await client.interact("Add some deer")
+        await client.end_stream()
+
+    except OdysseyAuthError:
+        print("Authentication failed - check your API key")
+    except OdysseyConnectionError as e:
+        print(f"Connection failed: {e}")
+        # Could retry here
+    except OdysseyStreamError as e:
+        print(f"Stream operation failed: {e}")
+    finally:
+        await client.disconnect()
+
+asyncio.run(main())
+```
+
+## Recording Workflow
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+    stream_id = None
+
+    try:
+        await client.connect(on_video_frame=lambda f: None)
+
+        # Start stream and save the ID
+        stream_id = await client.start_stream("A sunset over the ocean")
+        print(f"Stream ID: {stream_id}")
+
+        await client.interact("Add some seagulls flying")
+        await asyncio.sleep(5)
+        await client.end_stream()
+
+    finally:
+        await client.disconnect()
+
+    # Retrieve the recording (after disconnect is fine)
+    if stream_id:
+        recording = await client.get_recording(stream_id)
+        print(f"Video URL: {recording.video_url}")
+        print(f"Duration: {recording.duration_seconds}s")
+
+        # List all recordings
+        result = await client.list_stream_recordings(limit=5)
+        print(f"Total recordings: {result.total}")
+        for rec in result.recordings:
+            print(f"  - {rec.stream_id}: {rec.duration_seconds}s")
+
+asyncio.run(main())
+```
+
+## Using with PIL
+
+```python theme={null}
+import asyncio
+from PIL import Image
+from odyssey import Odyssey, VideoFrame
+
+latest_image = None
+
+def on_frame(frame: VideoFrame) -> None:
+    global latest_image
+    latest_image = Image.fromarray(frame.data)
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    await client.connect(on_video_frame=on_frame)
+    await client.start_stream("A beautiful garden")
+
+    # Wait for some frames
+    await asyncio.sleep(2)
+
+    # Save the latest frame
+    if latest_image:
+        latest_image.save("screenshot.png")
+        print("Saved screenshot.png")
+
+    await client.end_stream()
+    await client.disconnect()
+
+asyncio.run(main())
+```
+
+## Batch Processing Multiple Prompts
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    prompts = [
+        "A cat sitting by a window",
+        "The cat looks outside",
+        "The cat stretches",
+        "The cat yawns",
+        "The cat curls up to sleep",
+    ]
+
+    try:
+        await client.connect(on_video_frame=lambda f: None)
+        await client.start_stream(prompts[0])
+
+        for prompt in prompts[1:]:
+            await asyncio.sleep(3)  # Wait between interactions
+            ack = await client.interact(prompt)
+            print(f"Acknowledged: {ack}")
+
+        await client.end_stream()
+    finally:
+        await client.disconnect()
+
+asyncio.run(main())
+```
+
+## Image-to-Video
+
+<Info>
+  **Image-to-video requirements:**
+
+  * SDK version 1.0.0+
+  * Max size: 25MB
+  * Supported formats: JPEG, PNG, WebP, GIF, BMP, HEIC, HEIF, AVIF
+  * Images are resized to 1280x704 (landscape) or 704x1280 (portrait)
+</Info>
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey, VideoFrame
+
+frames = []
+
+def on_frame(frame: VideoFrame) -> None:
+    frames.append(frame.data.copy())
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    try:
+        # Connect to Odyssey
+        await client.connect(
+            on_video_frame=on_frame,
+        )
+
+        # Start stream with an image (file path)
+        stream_id = await client.start_stream(
+            prompt="A cat",
+            portrait=False,
+            image="/path/to/your/image.jpg"
+        )
+        print(f"Stream started: {stream_id}")
+
+        # Interact as usual
+        await client.interact("Pet the cat")
+        await asyncio.sleep(5)
+
+        await client.end_stream()
+    finally:
+        await client.disconnect()
+
+    print(f"Collected {len(frames)} frames")
+
+asyncio.run(main())
+```
+
+You can also use PIL Images, bytes, or NumPy arrays:
+
+```python theme={null}
+from PIL import Image
+
+# Using PIL Image
+pil_image = Image.open("/path/to/image.jpg")
+stream_id = await client.start_stream(prompt="A cat", image=pil_image)
+
+# Using bytes
+with open("/path/to/image.jpg", "rb") as f:
+    image_bytes = f.read()
+stream_id = await client.start_stream(prompt="A cat", image=image_bytes)
+```
+
+## Working with the Simulate API
+
+<Info>The Simulate API requires SDK version 1.0.0 or higher.</Info>
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    # Create a simulation with a scripted sequence
+    job = await client.simulate(
+        script=[
+            {"timestamp_ms": 0, "start": {"prompt": "A cat sitting on a windowsill"}},
+            {"timestamp_ms": 3000, "interact": {"prompt": "The cat watches a bird outside"}},
+            {"timestamp_ms": 6000, "interact": {"prompt": "The cat stretches lazily"}},
+            {"timestamp_ms": 9000, "end": {}}
+        ],
+        portrait=True
+    )
+
+    print(f"Simulation started: {job.job_id}")
+
+    # Poll for completion
+    while True:
+        status = await client.get_simulate_status(job.job_id)
+
+        if status.status == "completed":
+            break
+        if status.status == "failed":
+            print(f"Simulation failed: {status.error_message}")
+            return
+        if status.status == "cancelled":
+            print("Simulation was cancelled")
+            return
+
+        await asyncio.sleep(5)
+
+    # Get recordings from completed simulation
+    for stream in status.streams:
+        recording = await client.get_recording(stream.stream_id)
+        print(f"Video URL: {recording.video_url}")
+
+asyncio.run(main())
+```
+
+
+# Overview
+Source: https://documentation.api.odyssey.ml/sdk/python/introduction
+
+Complete API reference for the Odyssey Python client library.
+
+The `odyssey` package provides an async Python client for interacting with Odyssey's audio-visual intelligence.
+
+<Info>
+  Requires Python 3.12+
+</Info>
+
+| Feature      | Minimum Version |
+| ------------ | --------------- |
+| Core SDK     | `^1.0.0`        |
+| Recordings   | `^1.0.0`        |
+| Simulate API | `^1.0.0`        |
+
+## Installation
+
+<CodeGroup>
+  ```bash pip theme={null}
+  pip install git+https://github.com/odysseyml/odyssey-python.git
+  ```
+
+  ```bash uv theme={null}
+  uv pip install git+https://github.com/odysseyml/odyssey-python.git
+  ```
+</CodeGroup>
+
+## API Summary
+
+### Methods
+
+| Signature                                                         | Description                                        |
+| ----------------------------------------------------------------- | -------------------------------------------------- |
+| `connect(**handlers) -> None`                                     | Connect to a streaming session (raises on failure) |
+| `disconnect() -> None`                                            | Disconnect and clean up resources                  |
+| `start_stream(prompt, portrait?, image?) -> str`                  | Start an interactive stream                        |
+| `interact(prompt) -> str`                                         | Send a prompt to update the video                  |
+| `end_stream() -> None`                                            | End the current stream session                     |
+| `get_recording(stream_id) -> Recording`                           | Get recording URLs for a stream                    |
+| `list_stream_recordings(limit?, offset?) -> StreamRecordingsList` | List user's stream recordings                      |
+| `simulate(script) -> SimulationJobInfo`                           | Create an async simulation job *(v1.0.0+)*         |
+| `get_simulate_status(id) -> SimulationJobDetail`                  | Get simulation job status *(v1.0.0+)*              |
+| `list_simulations(limit?, offset?) -> SimulationJobsList`         | List simulation jobs *(v1.0.0+)*                   |
+| `cancel_simulation(id) -> None`                                   | Cancel a simulation job *(v1.0.0+)*                |
+
+### Properties
+
+| Property             | Type               | Description                 |                    |
+| -------------------- | ------------------ | --------------------------- | ------------------ |
+| `is_connected`       | `bool`             | Whether connected and ready |                    |
+| `current_status`     | `ConnectionStatus` | Current connection status   |                    |
+| `current_session_id` | \`str              | None\`                      | Current session ID |
+
+### Event Handlers
+
+| Handler                    | Parameters                      | Description                                                      |
+| -------------------------- | ------------------------------- | ---------------------------------------------------------------- |
+| `on_connected`             | -                               | WebRTC connection established                                    |
+| `on_disconnected`          | -                               | Connection closed                                                |
+| `on_video_frame`           | `frame: VideoFrame`             | Video frame received                                             |
+| `on_stream_started`        | `stream_id: str`                | Interactive stream ready (stream\_id can be used for recordings) |
+| `on_stream_ended`          | -                               | Interactive stream ended                                         |
+| `on_interact_acknowledged` | `prompt: str`                   | Interaction processed                                            |
+| `on_stream_error`          | `reason, message`               | Stream error occurred                                            |
+| `on_error`                 | `error: Exception, fatal: bool` | General error                                                    |
+| `on_status_change`         | `status, message?`              | Connection status changed                                        |
+
+### Exceptions
+
+| Exception                | Description                               |
+| ------------------------ | ----------------------------------------- |
+| `OdysseyError`           | Base exception for all Odyssey errors     |
+| `OdysseyAuthError`       | Authentication failed (invalid API key)   |
+| `OdysseyConnectionError` | Connection failed (no streamers, timeout) |
+| `OdysseyStreamError`     | Stream operation failed                   |
+
+## Next Steps
+
+<CardGroup>
+  <Card title="Odyssey Client" icon="cube" href="/sdk/python/client">
+    Main client class documentation
+  </Card>
+
+  <Card title="Recordings" icon="video" href="/sdk/python/recordings">
+    Working with stream recordings
+  </Card>
+
+  <Card title="Simulate API" icon="robot" href="/sdk/python/simulations">
+    Async scripted video generation
+  </Card>
+
+  <Card title="Types" icon="code" href="/sdk/python/types">
+    Python types and dataclasses
+  </Card>
+
+  <Card title="Examples" icon="file-code" href="/sdk/python/examples">
+    Complete usage examples
+  </Card>
+</CardGroup>
+
+
+# Recordings
+Source: https://documentation.api.odyssey.ml/sdk/python/recordings
+
+Working with stream recordings in the Odyssey Python client.
+
+<Info>Recording features are available in the Python SDK.</Info>
+
+After a stream session ends, you can retrieve recording artifacts including the full video, events log, thumbnail, and preview.
+
+## Capturing the Stream ID
+
+The stream ID is provided in the `on_stream_started` callback or returned from `start_stream()`. Save this ID to retrieve recordings later:
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey
+
+client = Odyssey(api_key="ody_your_api_key_here")
+
+current_stream_id = None
+
+def on_stream_started(stream_id: str) -> None:
+    global current_stream_id
+    current_stream_id = stream_id
+    print(f"Stream started: {stream_id}")
+
+async def main():
+    await client.connect(
+        on_video_frame=lambda frame: None,
+        on_stream_started=on_stream_started,
+    )
+
+    # Or capture from return value
+    stream_id = await client.start_stream("A cat")
+
+    # ... interact with the stream ...
+    await client.end_stream()
+    await client.disconnect()
+
+asyncio.run(main())
+```
+
+## Retrieving a Recording
+
+Use `get_recording()` with the stream ID to get presigned URLs for the recording artifacts:
+
+```python theme={null}
+recording = await client.get_recording(current_stream_id)
+
+if recording.video_url:
+    print(f"Video URL: {recording.video_url}")
+    print(f"Duration: {recording.duration_seconds}s")
+    print(f"Frames: {recording.frame_count}")
+
+if recording.events_url:
+    # Download and parse the events log (JSONL format)
+    import httpx
+    import json
+
+    async with httpx.AsyncClient() as http:
+        response = await http.get(recording.events_url)
+        events = [json.loads(line) for line in response.text.strip().split('\n')]
+        print(f"Session events: {events}")
+```
+
+<Note>
+  `get_recording()` can be called without an active connection. It only requires a valid API key.
+</Note>
+
+### Recording Properties
+
+| Property           | Type            | Description                            |
+| ------------------ | --------------- | -------------------------------------- |
+| `stream_id`        | `str`           | The stream ID                          |
+| `video_url`        | `str \| None`   | Presigned URL for full recording (MP4) |
+| `events_url`       | `str \| None`   | Presigned URL for events log (JSONL)   |
+| `thumbnail_url`    | `str \| None`   | Presigned URL for thumbnail (JPEG)     |
+| `preview_url`      | `str \| None`   | Presigned URL for preview video (MP4)  |
+| `frame_count`      | `int \| None`   | Total frames in recording              |
+| `duration_seconds` | `float \| None` | Recording duration in seconds          |
+
+## Listing All Recordings
+
+Use `list_stream_recordings()` to get a paginated list of all your recordings:
+
+```python theme={null}
+# Get recent recordings
+result = await client.list_stream_recordings(limit=10)
+print(f"Found {result.total} recordings")
+
+for rec in result.recordings:
+    print(f"Stream {rec.stream_id}: {rec.duration_seconds}s at {rec.width}x{rec.height}")
+
+# Paginate through results
+page2 = await client.list_stream_recordings(limit=10, offset=10)
+```
+
+### Pagination Options
+
+| Option   | Type          | Default | Description                  |
+| -------- | ------------- | ------- | ---------------------------- |
+| `limit`  | `int \| None` | `None`  | Maximum recordings to return |
+| `offset` | `int \| None` | `None`  | Number of recordings to skip |
+
+## Complete Workflow Example
+
+This example shows the full workflow: starting a stream, interacting with it, ending it, and then retrieving the recording:
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey, OdysseyConnectionError
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    try:
+        await client.connect(
+            on_video_frame=lambda frame: print(f"Frame: {frame.width}x{frame.height}"),
+        )
+
+        # Start an interactive stream and capture the stream ID
+        stream_id = await client.start_stream("A cat sitting on a windowsill", portrait=True)
+        print(f"Stream started: {stream_id}")
+
+        # Send some interactions
+        await client.interact("The cat stretches and yawns")
+        await client.interact("The cat looks outside at birds")
+
+        # Let it run for a bit
+        await asyncio.sleep(5)
+
+        # End the stream
+        await client.end_stream()
+
+    except OdysseyConnectionError as e:
+        print(f"Connection failed: {e}")
+    finally:
+        await client.disconnect()
+
+    # Retrieve the recording (can be done after disconnect)
+    recording = await client.get_recording(stream_id)
+
+    if recording.video_url:
+        print(f"Recording available at: {recording.video_url}")
+        print(f"Duration: {recording.duration_seconds} seconds")
+
+asyncio.run(main())
+```
+
+## Downloading Recordings
+
+Example of downloading recording files:
+
+```python theme={null}
+import httpx
+from pathlib import Path
+
+async def download_recording(client: Odyssey, stream_id: str, output_dir: Path):
+    recording = await client.get_recording(stream_id)
+
+    async with httpx.AsyncClient() as http:
+        if recording.video_url:
+            response = await http.get(recording.video_url)
+            (output_dir / f"{stream_id}.mp4").write_bytes(response.content)
+            print(f"Downloaded video: {stream_id}.mp4")
+
+        if recording.thumbnail_url:
+            response = await http.get(recording.thumbnail_url)
+            (output_dir / f"{stream_id}_thumb.jpg").write_bytes(response.content)
+            print(f"Downloaded thumbnail: {stream_id}_thumb.jpg")
+```
+
+## Related
+
+<CardGroup>
+  <Card title="Recording Types" icon="code" href="/sdk/python/types#recording">
+    Python dataclasses for recordings
+  </Card>
+
+  <Card title="Odyssey Client" icon="cube" href="/sdk/python/client#get_recording">
+    get\_recording and list\_stream\_recordings methods
+  </Card>
+</CardGroup>
+
+
+# Simulate API
+Source: https://documentation.api.odyssey.ml/sdk/python/simulations
+
+Run scripted video generation asynchronously with the Simulate API.
+
+<Info>The Simulate API requires SDK version 1.0.0 or higher.</Info>
+
+The Simulate API allows you to run scripted interactions asynchronously. Unlike the Interactive API where you connect and interact in real-time, simulations execute in the background and produce recordings you can retrieve when complete.
+
+## When to Use the Simulate API
+
+| Use Case                 | Recommended Approach                             |
+| ------------------------ | ------------------------------------------------ |
+| Real-time interaction    | Interactive API (`connect()` + `start_stream()`) |
+| Batch video generation   | Simulate API                                     |
+| Pre-scripted sequences   | Simulate API                                     |
+| Background processing    | Simulate API                                     |
+| User-driven interactions | Interactive API                                  |
+
+## Script Format
+
+A simulation script is a list of dictionaries that define the sequence of actions using timestamps:
+
+```python theme={null}
+from typing import TypedDict, NotRequired
+
+class StartAction(TypedDict):
+    prompt: str
+    image: NotRequired[str | bytes]  # Optional image for image-to-video
+
+class InteractAction(TypedDict):
+    prompt: str
+
+class ScriptEntry(TypedDict):
+    timestamp_ms: int                    # When this action occurs (milliseconds from start)
+    start: NotRequired[StartAction]      # Begin a new stream
+    interact: NotRequired[InteractAction] # Send an interaction
+    end: NotRequired[dict]               # End the stream (empty dict)
+```
+
+### Entry Types
+
+| Action     | Fields               | Description                            |
+| ---------- | -------------------- | -------------------------------------- |
+| `start`    | `{ prompt, image? }` | Begin a new stream with initial prompt |
+| `interact` | `{ prompt }`         | Send an interaction prompt             |
+| `end`      | `{}`                 | End the current stream                 |
+
+### Example Script
+
+```python theme={null}
+script = [
+    # Start a portrait video of a cat at t=0
+    {"timestamp_ms": 0, "start": {"prompt": "A cat sitting by a window"}},
+
+    # Interact at t=3000ms (3 seconds)
+    {"timestamp_ms": 3000, "interact": {"prompt": "The cat looks outside"}},
+
+    # Another interaction at t=6000ms (6 seconds)
+    {"timestamp_ms": 6000, "interact": {"prompt": "The cat stretches"}},
+
+    # End the stream at t=9000ms (9 seconds)
+    {"timestamp_ms": 9000, "end": {}}
+]
+```
+
+## Basic Workflow
+
+### 1. Create a Simulation
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    job = await client.simulate(
+        script=[
+            {"timestamp_ms": 0, "start": {"prompt": "A serene mountain landscape"}},
+            {"timestamp_ms": 5000, "interact": {"prompt": "Clouds roll across the sky"}},
+            {"timestamp_ms": 10000, "interact": {"prompt": "The sun begins to set"}},
+            {"timestamp_ms": 15000, "end": {}}
+        ],
+        portrait=False
+    )
+
+    print(f"Simulation ID: {job.job_id}")
+    print(f"Status: {job.status}")  # 'pending'
+
+asyncio.run(main())
+```
+
+### 2. Poll for Completion
+
+```python theme={null}
+async def wait_for_completion(client, job_id):
+    while True:
+        status = await client.get_simulate_status(job_id)
+
+        if status.status == "completed":
+            return status
+
+        if status.status == "failed":
+            raise Exception(f"Simulation failed: {status.error_message}")
+
+        if status.status == "cancelled":
+            raise Exception("Simulation was cancelled")
+
+        # Wait 5 seconds before checking again
+        await asyncio.sleep(5)
+
+result = await wait_for_completion(client, job.job_id)
+print("Simulation completed!")
+```
+
+### 3. Retrieve Recordings
+
+```python theme={null}
+# Get the stream IDs from the completed simulation
+for stream in result.streams:
+    recording = await client.get_recording(stream.stream_id)
+    print(f"Video URL: {recording.video_url}")
+    print(f"Duration: {recording.duration_seconds} seconds")
+```
+
+## Image-to-Video with the Simulate API
+
+You can start a simulation with an image:
+
+```python theme={null}
+# Using a file path string
+job = await client.simulate(
+    script=[
+        {
+            "timestamp_ms": 0,
+            "start": {
+                "prompt": "A cat",
+                "image": "/path/to/image.jpg"
+            }
+        },
+        {"timestamp_ms": 3000, "interact": {"prompt": "The cat looks around"}},
+        {"timestamp_ms": 6000, "end": {}}
+    ],
+    portrait=False
+)
+
+# Using bytes
+with open("/path/to/image.jpg", "rb") as f:
+    image_bytes = f.read()
+
+job = await client.simulate(
+    script=[
+        {"timestamp_ms": 0, "start": {"prompt": "A cat", "image": image_bytes}},
+        {"timestamp_ms": 10000, "end": {}}
+    ]
+)
+
+# Using a base64 data URL string
+job = await client.simulate(
+    script=[
+        {
+            "timestamp_ms": 0,
+            "start": {
+                "prompt": "Robot dancing",
+                "image": "data:image/png;base64,iVBORw0KGgo..."
+            }
+        },
+        {"timestamp_ms": 10000, "end": {}}
+    ]
+)
+```
+
+## Managing Simulation Jobs
+
+### List Your Simulation Jobs
+
+```python theme={null}
+result = await client.list_simulations(limit=10)
+
+for sim in result.jobs:
+    print(f"{sim.job_id}: {sim.status} (created: {sim.created_at})")
+
+print(f"Showing {len(result.jobs)} of {result.total} total simulations")
+```
+
+### Cancel a Simulation
+
+```python theme={null}
+# Cancel a pending or running simulation
+await client.cancel_simulation(job.job_id)
+print("Simulation cancelled")
+```
+
+## Complete Example
+
+```python theme={null}
+import asyncio
+from odyssey import Odyssey
+
+async def run_simulation():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    # Create simulation
+    job = await client.simulate(
+        script=[
+            {"timestamp_ms": 0, "start": {"prompt": "A cat sitting on a windowsill"}},
+            {"timestamp_ms": 3000, "interact": {"prompt": "The cat watches a bird outside"}},
+            {"timestamp_ms": 6000, "interact": {"prompt": "The cat stretches lazily"}},
+            {"timestamp_ms": 9000, "interact": {"prompt": "The cat curls up to sleep"}},
+            {"timestamp_ms": 12000, "end": {}}
+        ],
+        portrait=True
+    )
+
+    print(f"Started simulation: {job.job_id}")
+
+    # Poll for completion
+    status = None
+    while True:
+        await asyncio.sleep(5)
+        status = await client.get_simulate_status(job.job_id)
+        print(f"Status: {status.status}")
+
+        if status.status not in ("pending", "running"):
+            break
+
+    if status.status == "completed":
+        # Download recordings
+        for stream in status.streams:
+            recording = await client.get_recording(stream.stream_id)
+            print(f"Recording ready: {recording.video_url}")
+    else:
+        print(f"Simulation failed: {status.error_message}")
+
+asyncio.run(run_simulation())
+```
+
+## Error Handling
+
+```python theme={null}
+from odyssey import Odyssey
+
+async def main():
+    client = Odyssey(api_key="ody_your_api_key_here")
+
+    try:
+        job = await client.simulate(
+            script=[
+                {"timestamp_ms": 0, "start": {"prompt": "A sunset over the ocean"}},
+                {"timestamp_ms": 5000, "end": {}}
+            ]
+        )
+
+        status = await client.get_simulate_status(job.job_id)
+
+        if status.status == "failed":
+            print(f"Job failed: {status.error_message}")
+
+            # Check individual streams for errors
+            for stream in status.streams:
+                if stream.status == "failed":
+                    print(f"Stream {stream.stream_id} failed: {stream.error_message}")
+
+    except Exception as e:
+        print(f"API error: {e}")
+
+asyncio.run(main())
+```
+
+
+# Types & Dataclasses
+Source: https://documentation.api.odyssey.ml/sdk/python/types
+
+Python types and dataclasses for the Odyssey client.
+
+## Video Types
+
+### VideoFrame
+
+Video frame data received from the stream.
+
+```python theme={null}
+@dataclass(frozen=True, slots=True)
+class VideoFrame:
+    data: np.ndarray      # RGB uint8 array, shape (height, width, 3)
+    width: int            # Frame width in pixels
+    height: int           # Frame height in pixels
+    timestamp_ms: int     # Presentation timestamp in milliseconds
+```
+
+| Property       | Type         | Description                                     |
+| -------------- | ------------ | ----------------------------------------------- |
+| `data`         | `np.ndarray` | RGB uint8 array with shape `(height, width, 3)` |
+| `width`        | `int`        | Frame width in pixels                           |
+| `height`       | `int`        | Frame height in pixels                          |
+| `timestamp_ms` | `int`        | Presentation timestamp in milliseconds          |
+
+**Example usage:**
+
+```python theme={null}
+import cv2
+from PIL import Image
+
+def on_frame(frame: VideoFrame) -> None:
+    # OpenCV (note: OpenCV uses BGR)
+    cv2.imshow("video", cv2.cvtColor(frame.data, cv2.COLOR_RGB2BGR))
+
+    # PIL
+    image = Image.fromarray(frame.data)
+
+    # Headless processing
+    processed = some_ml_model(frame.data)
+```
+
+## Recording Types
+
+### Recording
+
+Recording data with presigned URLs for a stream.
+
+```python theme={null}
+@dataclass(frozen=True, slots=True)
+class Recording:
+    stream_id: str              # Unique stream identifier
+    video_url: str | None       # Presigned URL for video file
+    events_url: str | None      # Presigned URL for events JSON
+    thumbnail_url: str | None   # Presigned URL for thumbnail image
+    preview_url: str | None     # Presigned URL for preview video
+    frame_count: int | None     # Total number of frames
+    duration_seconds: float | None  # Duration in seconds
+```
+
+| Property           | Type            | Description                              |
+| ------------------ | --------------- | ---------------------------------------- |
+| `stream_id`        | `str`           | Unique stream identifier                 |
+| `video_url`        | `str \| None`   | Presigned URL for video file (MP4)       |
+| `events_url`       | `str \| None`   | Presigned URL for events log (JSONL)     |
+| `thumbnail_url`    | `str \| None`   | Presigned URL for thumbnail image (JPEG) |
+| `preview_url`      | `str \| None`   | Presigned URL for preview video (MP4)    |
+| `frame_count`      | `int \| None`   | Total number of frames                   |
+| `duration_seconds` | `float \| None` | Duration in seconds                      |
+
+<Note>
+  URLs are valid for a limited time (typically 1 hour).
+</Note>
+
+### StreamRecordingInfo
+
+Summary info for a stream recording in a list.
+
+```python theme={null}
+@dataclass(frozen=True, slots=True)
+class StreamRecordingInfo:
+    stream_id: str              # Unique stream identifier
+    width: int                  # Video width in pixels
+    height: int                 # Video height in pixels
+    started_at: str             # ISO 8601 timestamp
+    ended_at: str | None        # ISO 8601 timestamp or None if active
+    duration_seconds: float | None  # Duration in seconds
+```
+
+| Property           | Type            | Description                            |
+| ------------------ | --------------- | -------------------------------------- |
+| `stream_id`        | `str`           | Unique stream identifier               |
+| `width`            | `int`           | Video width in pixels                  |
+| `height`           | `int`           | Video height in pixels                 |
+| `started_at`       | `str`           | ISO 8601 timestamp when stream started |
+| `ended_at`         | `str \| None`   | ISO 8601 timestamp when stream ended   |
+| `duration_seconds` | `float \| None` | Duration in seconds                    |
+
+### StreamRecordingsList
+
+Paginated list of stream recordings.
+
+```python theme={null}
+@dataclass(frozen=True, slots=True)
+class StreamRecordingsList:
+    recordings: list[StreamRecordingInfo]  # List of recording info
+    total: int                              # Total recordings available
+    limit: int                              # Max per request
+    offset: int                             # Recordings skipped
+```
+
+| Property     | Type                        | Description                 |
+| ------------ | --------------------------- | --------------------------- |
+| `recordings` | `list[StreamRecordingInfo]` | List of recording summaries |
+| `total`      | `int`                       | Total recordings available  |
+| `limit`      | `int`                       | Limit used in request       |
+| `offset`     | `int`                       | Offset used in request      |
+
+## Simulate API Types
+
+<Info>Simulate API types were added in v1.0.0</Info>
+
+### ScriptEntry
+
+An entry in a simulation script.
+
+```python theme={null}
+from typing import TypedDict, NotRequired
+
+class StartAction(TypedDict):
+    prompt: str
+    image: NotRequired[str | bytes]  # Optional image for image-to-video
+
+class InteractAction(TypedDict):
+    prompt: str
+
+class ScriptEntry(TypedDict):
+    timestamp_ms: int                    # When this action occurs (milliseconds from start)
+    start: NotRequired[StartAction]      # Begin a new stream
+    interact: NotRequired[InteractAction] # Send an interaction
+    end: NotRequired[dict]               # End the stream (empty dict)
+```
+
+| Property       | Type                                    | Description                                       |
+| -------------- | --------------------------------------- | ------------------------------------------------- |
+| `timestamp_ms` | `int`                                   | When this action occurs (milliseconds from start) |
+| `start`        | `{ prompt: str, image?: str \| bytes }` | Begin a new stream with initial prompt            |
+| `interact`     | `{ prompt: str }`                       | Send an interaction prompt                        |
+| `end`          | `{}`                                    | End the current stream (empty dict)               |
+
+### SimulationStream
+
+Information about a stream within a simulation.
+
+```python theme={null}
+@dataclass(frozen=True, slots=True)
+class SimulationStream:
+    stream_id: str                    # Unique stream identifier
+    status: str                       # Stream status (pending, running, completed, failed)
+    error_message: str | None         # Error message if failed
+```
+
+| Property        | Type          | Description              |
+| --------------- | ------------- | ------------------------ |
+| `stream_id`     | `str`         | Unique stream identifier |
+| `status`        | `str`         | Status of this stream    |
+| `error_message` | `str \| None` | Error message if failed  |
+
+### SimulationJobInfo
+
+Summary information for a simulation job in a list.
+
+```python theme={null}
+@dataclass(frozen=True, slots=True)
+class SimulationJobInfo:
+    job_id: str                       # Unique identifier for the job
+    status: str                       # Current job status
+    priority: str                     # Job priority
+    created_at: str                   # ISO timestamp when job was created
+    completed_at: str | None          # ISO timestamp when job completed
+    error_message: str | None         # Error message if job failed
+```
+
+| Property        | Type          | Description                                                                   |
+| --------------- | ------------- | ----------------------------------------------------------------------------- |
+| `job_id`        | `str`         | Unique identifier for the job                                                 |
+| `status`        | `str`         | Current job status (`pending`, `running`, `completed`, `failed`, `cancelled`) |
+| `priority`      | `str`         | Job priority                                                                  |
+| `created_at`    | `str`         | ISO timestamp when job was created                                            |
+| `completed_at`  | `str \| None` | ISO timestamp when job completed                                              |
+| `error_message` | `str \| None` | Error message if job failed                                                   |
+
+### SimulationJobDetail
+
+Detailed information about a simulation job.
+
+```python theme={null}
+@dataclass(frozen=True, slots=True)
+class SimulationJobDetail:
+    job_id: str                       # Unique identifier for the job
+    status: str                       # Current job status
+    priority: str                     # Job priority
+    created_at: str                   # ISO timestamp when job was created
+    started_at: str | None            # ISO timestamp when job started running
+    completed_at: str | None          # ISO timestamp when job completed
+    error_message: str | None         # Error message if job failed
+    streams: list[SimulationStream]   # Streams created during simulation
+```
+
+| Property        | Type                     | Description                                                                   |
+| --------------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `job_id`        | `str`                    | Unique identifier for the job                                                 |
+| `status`        | `str`                    | Current job status (`pending`, `running`, `completed`, `failed`, `cancelled`) |
+| `priority`      | `str`                    | Job priority                                                                  |
+| `created_at`    | `str`                    | ISO timestamp when job was created                                            |
+| `started_at`    | `str \| None`            | ISO timestamp when job started running                                        |
+| `completed_at`  | `str \| None`            | ISO timestamp when job completed                                              |
+| `error_message` | `str \| None`            | Error message if job failed                                                   |
+| `streams`       | `list[SimulationStream]` | Streams created during simulation                                             |
+
+### SimulationJobsList
+
+Paginated list of simulation jobs.
+
+```python theme={null}
+@dataclass(frozen=True, slots=True)
+class SimulationJobsList:
+    jobs: list[SimulationJobInfo]     # List of simulation job summaries
+    total: int                        # Total jobs available
+    limit: int                        # Limit used in request
+    offset: int                       # Offset used in request
+```
+
+| Property | Type                      | Description                      |
+| -------- | ------------------------- | -------------------------------- |
+| `jobs`   | `list[SimulationJobInfo]` | List of simulation job summaries |
+| `total`  | `int`                     | Total jobs available             |
+| `limit`  | `int`                     | Limit used in request            |
+| `offset` | `int`                     | Offset used in request           |
+
+## Status Types
+
+### ConnectionStatus
+
+```python theme={null}
+class ConnectionStatus(str, Enum):
+    AUTHENTICATING = "authenticating"  # Authenticating with Odyssey API
+    CONNECTING = "connecting"          # Connecting to signaling server
+    RECONNECTING = "reconnecting"      # Reconnecting after disconnect
+    CONNECTED = "connected"            # Connected and ready
+    DISCONNECTED = "disconnected"      # Disconnected (clean)
+    FAILED = "failed"                  # Connection failed (fatal)
+```
+
+## Configuration Types
+
+### ClientConfig
+
+Configuration for the Odyssey client.
+
+```python theme={null}
+@dataclass
+class ClientConfig:
+    api_key: str                        # API key for authentication (required)
+    api_url: str = "https://api.odyssey.ml"  # API URL
+    dev: DevConfig = DevConfig()        # Development settings
+    advanced: AdvancedConfig = AdvancedConfig()  # Advanced settings
+```
+
+### DevConfig
+
+Development/debug settings.
+
+```python theme={null}
+@dataclass
+class DevConfig:
+    signaling_url: str | None = None  # Direct signaling URL (bypasses API)
+    session_id: str | None = None     # Session ID for direct connection
+    debug: bool = False               # Enable debug logging
+```
+
+### AdvancedConfig
+
+Advanced connection settings.
+
+```python theme={null}
+@dataclass
+class AdvancedConfig:
+    max_retries: int = 5              # Max retry attempts
+    initial_retry_delay_ms: int = 1000  # Initial retry delay
+    max_retry_delay_ms: int = 2000    # Max retry delay
+    retry_backoff_multiplier: float = 2.0  # Backoff multiplier
+    queue_timeout_s: int = 30         # Queue timeout in seconds
+```
+
+## Exceptions
+
+### OdysseyError
+
+Base exception for all Odyssey errors.
+
+```python theme={null}
+class OdysseyError(Exception):
+    pass
+```
+
+### OdysseyAuthError
+
+Raised when authentication fails.
+
+```python theme={null}
+class OdysseyAuthError(OdysseyError):
+    pass
+```
+
+### OdysseyConnectionError
+
+Raised when connection fails.
+
+```python theme={null}
+class OdysseyConnectionError(OdysseyError):
+    pass
+```
+
+### OdysseyStreamError
+
+Raised when a stream operation fails.
+
+```python theme={null}
+class OdysseyStreamError(OdysseyError):
+    pass
+```
+
+## Error Handling
+
+### Fatal vs Non-Fatal Errors
+
+The `on_error` handler receives a `fatal` boolean parameter:
+
+| Fatal   | Description                | Action Required          |
+| ------- | -------------------------- | ------------------------ |
+| `True`  | Connection cannot continue | Reconnect or exit        |
+| `False` | Recoverable error          | May retry or notify user |
+
+### Common Errors
+
+| Error                                                             | Description                             |
+| ----------------------------------------------------------------- | --------------------------------------- |
+| `OdysseyAuthError`                                                | API key is invalid or expired           |
+| `OdysseyConnectionError: No streamers available`                  | No streamers available, try again later |
+| `OdysseyConnectionError: Timed out waiting for a streamer`        | Queue timeout expired                   |
+| `OdysseyStreamError: Cannot start stream: client is disconnected` | Attempted operation while disconnected  |
+
+## Environment Variables
+
+| Variable          | Description                        |
+| ----------------- | ---------------------------------- |
+| `ODYSSEY_API_URL` | Override default API URL           |
+| `ODYSSEY_API_KEY` | Default API key (used by examples) |
+
+

@@ -13,8 +13,8 @@ const STATUS_MESSAGES: Record<AppState, string> = {
   IDLE: 'Press SPACE to start drawing',
   DRAWING: 'Drawing... Press SPACE to pause',
   PAUSED: 'Paused — Press SPACE to resume drawing',
-  GENERATING: 'Creating your world...',
-  STREAMING: 'Your world is live! Type to interact',
+  GENERATING: 'Pipeline running... See Pipeline tab',
+  STREAMING: 'World is live! See Odyssey tab',
 };
 
 export function StatusBar({

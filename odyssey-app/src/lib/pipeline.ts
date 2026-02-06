@@ -198,6 +198,13 @@ export interface PipelineResult {
   imagePrompt: string;
 }
 
+export interface PipelineProgress {
+  step: 'imagePrompt' | 'image' | 'odysseyPrompt';
+  imagePrompt?: string;
+  imageDataUrl?: string;
+  odysseyPrompt?: string;
+}
+
 /**
  * Run the full generation pipeline:
  * sketch image → Claude analyzes → NanoBanana renders → Claude optimizes Odyssey prompt
@@ -205,21 +212,25 @@ export interface PipelineResult {
 export async function runPipeline(
   sketchDataUrl: string,
   onStatus: (status: string) => void,
+  onProgress?: (progress: PipelineProgress) => void,
 ): Promise<PipelineResult> {
   // Step 1: Claude analyzes the sketch and writes a photorealistic prompt
   onStatus('Analyzing sketch with Claude...');
   const imagePrompt = await analyzeSketchAndGeneratePrompt(sketchDataUrl);
   console.log('[Pipeline] Image prompt:', imagePrompt);
+  onProgress?.({ step: 'imagePrompt', imagePrompt });
 
   // Step 2: NanoBanana renders sketch + prompt into photorealistic image
   onStatus('Generating photorealistic image with NanoBanana...');
   const imageResult = await generatePhotorealisticImage(sketchDataUrl, imagePrompt);
   console.log('[Pipeline] Image generated:', imageResult.file.name, imageResult.file.size, 'bytes');
+  onProgress?.({ step: 'image', imageDataUrl: imageResult.dataUrl });
 
   // Step 3: Claude writes optimized Odyssey prompt from the analysis
   onStatus('Optimizing world prompt with Claude...');
   const odysseyPrompt = await generateOdysseyPrompt(imagePrompt);
   console.log('[Pipeline] Odyssey prompt:', odysseyPrompt);
+  onProgress?.({ step: 'odysseyPrompt', odysseyPrompt });
 
   return { image: imageResult.file, imageDataUrl: imageResult.dataUrl, odysseyPrompt, imagePrompt };
 }
