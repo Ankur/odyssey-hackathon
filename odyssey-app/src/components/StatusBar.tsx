@@ -7,11 +7,6 @@ interface StatusBarProps {
   onUndo: () => void;
   onSaveSketch: () => void;
   onLoadSketch: () => void;
-  onUnloadDrawing: () => void;
-  onStartEditing: () => void;
-  canStartEditing: boolean;
-  onToggleCamera: () => void;
-  isCameraOn: boolean;
 }
 
 const STATUS_MESSAGES: Record<AppState, string> = {
@@ -29,11 +24,6 @@ export function StatusBar({
   onUndo,
   onSaveSketch,
   onLoadSketch,
-  onUnloadDrawing,
-  onStartEditing,
-  canStartEditing,
-  onToggleCamera,
-  isCameraOn,
 }: StatusBarProps) {
   const inDrawMode = appState === 'DRAWING' || appState === 'PAUSED' || appState === 'IDLE';
 
@@ -48,24 +38,6 @@ export function StatusBar({
 
       {inDrawMode && (
         <div className="status-right">
-          <button
-            className="control-btn"
-            onClick={onToggleCamera}
-            title={isCameraOn ? 'Turn camera off' : 'Turn camera on'}
-          >
-            {isCameraOn ? 'Camera Off' : 'Camera On'}
-          </button>
-          <button
-            className="control-btn"
-            onClick={onStartEditing}
-            disabled={!canStartEditing}
-            title="Capture the current scene and switch to the Edit tab"
-          >
-            Start Editing
-          </button>
-          <button className="control-btn" onClick={onUnloadDrawing} title="Send drawing to pipeline tab">
-            Unload
-          </button>
           <button className="control-btn" onClick={onLoadSketch} title="Load saved sketch">
             Load
           </button>
