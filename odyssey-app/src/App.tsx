@@ -905,11 +905,6 @@ export default function App() {
             onUndo={drawing.undo}
             onSaveSketch={handleSaveSketch}
             onLoadSketch={handleLoadSketch}
-            onUnloadDrawing={handleUnloadDrawing}
-            onStartEditing={handleStartEditing}
-            canStartEditing={canStartEditing}
-            onToggleCamera={handleToggleCamera}
-            isCameraOn={isCameraOn}
           />
         </div>
 
