@@ -3,7 +3,6 @@ import { useHandTracking } from '../hooks/useHandTracking';
 import { useDrawing } from '../hooks/useDrawing';
 import { useOdysseyClient } from '../hooks/useOdysseyClient';
 import { runPipeline } from '../lib/pipeline';
-import { analyzeEditChanges } from '../lib/editPipeline';
 import { exportCanvasAsDataUrl, drawPulseAnimation } from '../lib/canvasUtils';
 import {
   getIndexTipPosition,
@@ -14,7 +13,6 @@ import { SparkleSystem } from '../lib/sparkle';
 import { COLOR_HOVER_COOLDOWN_MS } from '../constants';
 import { WebcamCanvas } from './WebcamCanvas';
 import { ColorPalette } from './ColorPalette';
-import { GeneratingOverlay } from './GeneratingOverlay';
 import frameImage from '../assets/frame.png';
 import frameMask from '../assets/frame-mask.png';
 
@@ -344,7 +342,7 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
     const video = odysseyVideoRef.current;
     if (!video || video.videoWidth === 0) return;
 
-    // Capture current frame from Odyssey video
+    // Capture current frame from Odyssey video (still needed for pipeline comparison)
     const captureCanvas = document.createElement('canvas');
     captureCanvas.width = video.videoWidth;
     captureCanvas.height = video.videoHeight;
@@ -357,21 +355,25 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
     drawing.clear();
     setIsDrawingActive(false);
     setPhase('editing');
-
-    // Ensure canvas dimensions match the before image for proper overlay
-    const img = new Image();
-    img.onload = () => {
-      if (drawCanvasRef.current) {
-        drawCanvasRef.current.width = img.width;
-        drawCanvasRef.current.height = img.height;
-      }
-      if (landmarkCanvasRef.current) {
-        landmarkCanvasRef.current.width = img.width;
-        landmarkCanvasRef.current.height = img.height;
-      }
-    };
-    img.src = captured;
+    // Canvas dimensions are synced by the useEffect below once phase is 'editing'
   }, [drawing]);
+
+  // Sync edit canvas dimensions to Odyssey video when entering editing phase
+  useEffect(() => {
+    if (phase === 'editing') {
+      const video = odysseyVideoRef.current;
+      if (video && video.videoWidth > 0) {
+        if (drawCanvasRef.current) {
+          drawCanvasRef.current.width = video.videoWidth;
+          drawCanvasRef.current.height = video.videoHeight;
+        }
+        if (landmarkCanvasRef.current) {
+          landmarkCanvasRef.current.width = video.videoWidth;
+          landmarkCanvasRef.current.height = video.videoHeight;
+        }
+      }
+    }
+  }, [phase]);
 
   // --- "Re-imagine" click handler ---
   const handleReImagine = useCallback(async () => {
@@ -431,16 +433,19 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
 
       const afterImage = compositeCanvas.toDataURL('image/png');
 
-      // Analyze the diff
-      const interactPrompt = await analyzeEditChanges(beforeImage, afterImage);
-      console.log('[Demo] Interact prompt:', interactPrompt);
+      // Run the full NanoBanano pipeline on the edited composite
+      const result = await runPipeline(afterImage, setGenerationStatus);
+      console.log('[Demo] Re-imagine pipeline complete:', result.odysseyPrompt);
 
-      // Send interact to Odyssey
-      await odyssey.interact(interactPrompt);
+      // End current stream and start a new one with the rendered image
+      setGenerationStatus('Restarting world stream...');
+      await odyssey.endStream();
+      await odyssey.startStream(result.odysseyPrompt, result.image);
 
       drawing.clear();
       setIsDrawingActive(false);
       setPhase('streaming');
+      setGenerationStatus('');
     } catch (err) {
       console.error('[Demo] Re-imagine failed:', err);
       alert(`Re-imagine failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -455,12 +460,6 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
     setIsDrawingActive(false);
     setPhase('streaming');
   }, [drawing]);
-
-  // --- Cancel generation handler ---
-  const handleCancelGeneration = useCallback(() => {
-    setPhase('draw');
-    setGenerationStatus('');
-  }, []);
 
   const hasStrokes = drawing.strokes.length > 0;
 
@@ -514,18 +513,14 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
         </>
       )}
 
-      {/* ===== GENERATING PHASE: overlay status on top of pulse animation ===== */}
-      {phase === 'generating' && (
-        <GeneratingOverlay
-          generationStatus={generationStatus}
-          onCancel={handleCancelGeneration}
-        />
-      )}
 
       {/* ===== STREAMING PHASE ===== */}
       {/* Odyssey video stays mounted from generating onwards so srcObject can be set before streaming phase */}
       {(phase === 'generating' || phase === 'streaming' || phase === 'editing') && (
-        <div className="demo-streaming" style={{ display: phase === 'streaming' ? undefined : 'none' }}>
+        <div className="demo-streaming" style={{
+          display: phase === 'streaming' || phase === 'editing' ? undefined : 'none',
+          ...(phase === 'editing' ? { background: '#0a0a0a', paddingBottom: 80 } : {}),
+        }}>
           <div className="odyssey-frame-container">
             <video
               ref={odysseyVideoRef}
@@ -535,17 +530,29 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
               className="odyssey-video"
               style={{
                 display: 'block',
-                maskImage: `url(${frameMask})`,
-                WebkitMaskImage: `url(${frameMask})`,
+                ...(phase !== 'editing' ? {
+                  maskImage: `url(${frameMask})`,
+                  WebkitMaskImage: `url(${frameMask})`,
+                } : {}),
               }}
             />
-            <img src={frameImage} className="odyssey-frame-overlay" alt="" />
+            {phase !== 'editing' && (
+              <img src={frameImage} className="odyssey-frame-overlay" alt="" />
+            )}
+            {phase === 'editing' && (
+              <>
+                <canvas ref={drawCanvasRef} className="draw-canvas" />
+                <canvas ref={landmarkCanvasRef} className="landmark-canvas" />
+              </>
+            )}
           </div>
-          <div className="demo-btn-row" style={{ marginTop: 16 }}>
-            <button className="control-btn primary demo-edit-btn" onClick={handleEdit}>
-              Edit
-            </button>
-          </div>
+          {phase === 'streaming' && (
+            <div className="demo-btn-row" style={{ marginTop: 16 }}>
+              <button className="control-btn primary demo-edit-btn" onClick={handleEdit}>
+                Edit
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -561,50 +568,40 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
             style={{ position: 'absolute', visibility: 'hidden', width: 0, height: 0 }}
           />
 
-          <div className="demo-edit-container">
-            <div className="webcam-container">
-              {/* Before image as background */}
-              {beforeImage && (
-                <img src={beforeImage} className="demo-before-image" alt="Before" />
+          <div className="demo-bottom-bar" style={{
+            background: 'transparent',
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
+            borderTop: 'none',
+          }}>
+            <p className="demo-status-hint">
+              {isReImagining
+                ? (generationStatus || 'Re-imagining...')
+                : !isDrawingActive
+                  ? 'Press SPACE to draw edits'
+                  : 'Drawing edits — press SPACE to pause'}
+            </p>
+            <div className="demo-reimagine-row">
+              <button className="control-btn" onClick={handleCancelEdit} disabled={isReImagining}>
+                Cancel
+              </button>
+              {hasStrokes && (
+                <>
+                  <button className="control-btn" onClick={drawing.undo} disabled={isReImagining}>
+                    Undo
+                  </button>
+                  <button className="control-btn" onClick={drawing.clear} disabled={isReImagining}>
+                    Clear
+                  </button>
+                </>
               )}
-
-              {/* Drawing overlay canvas */}
-              <canvas ref={drawCanvasRef} className="draw-canvas" />
-
-              {/* Landmark overlay canvas */}
-              <canvas ref={landmarkCanvasRef} className="landmark-canvas" />
-            </div>
-
-            <div className="demo-bottom-bar">
-              <p className="demo-status-hint">
-                {isReImagining
-                  ? 'Analyzing changes...'
-                  : !isDrawingActive
-                    ? 'Press SPACE to draw edits'
-                    : 'Drawing edits — press SPACE to pause'}
-              </p>
-              <div className="demo-reimagine-row">
-                <button className="control-btn" onClick={handleCancelEdit} disabled={isReImagining}>
-                  Cancel
-                </button>
-                {hasStrokes && (
-                  <>
-                    <button className="control-btn" onClick={drawing.undo} disabled={isReImagining}>
-                      Undo
-                    </button>
-                    <button className="control-btn" onClick={drawing.clear} disabled={isReImagining}>
-                      Clear
-                    </button>
-                  </>
-                )}
-                <button
-                  className="control-btn primary"
-                  onClick={handleReImagine}
-                  disabled={!hasStrokes || isReImagining}
-                >
-                  {isReImagining ? 'Re-imagining...' : 'Re-imagine'}
-                </button>
-              </div>
+              <button
+                className="control-btn primary"
+                onClick={handleReImagine}
+                disabled={!hasStrokes || isReImagining}
+              >
+                {isReImagining ? 'Re-imagining...' : 'Re-imagine'}
+              </button>
             </div>
           </div>
         </>
