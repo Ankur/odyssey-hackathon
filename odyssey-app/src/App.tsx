@@ -9,6 +9,7 @@ import {
   analyzeSketchAndGeneratePrompt,
   generatePhotorealisticImage,
   generateOdysseyPrompt,
+  analyzeImageForOdyssey,
 } from './lib/pipeline';
 import { analyzeEditChanges } from './lib/editPipeline';
 import { exportCanvasAsDataUrl } from './lib/canvasUtils';
@@ -347,6 +348,52 @@ export default function App() {
     }
   }, [odyssey]);
 
+  // Default World — use pre-existing image directly with Odyssey
+  const handleDefaultWorld = useCallback(async () => {
+    setAppState('GENERATING');
+    setGenerationStatus('Loading default world image...');
+    setPipelineResults(EMPTY_PIPELINE_RESULTS);
+
+    try {
+      // Fetch the default image and convert to data URL + File
+      const res = await fetch('/default-world.png');
+      const blob = await res.blob();
+      const file = new File([blob], 'default-world.png', { type: blob.type });
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+
+      setPipelineResults((prev) => ({ ...prev, imageDataUrl: dataUrl }));
+
+      // Analyze the image with Claude to generate an Odyssey prompt
+      setGenerationStatus('Analyzing image with Claude...');
+      const odysseyPrompt = await analyzeImageForOdyssey(dataUrl);
+      console.log('[DefaultWorld] Odyssey prompt:', odysseyPrompt);
+      setPipelineResults((prev) => ({ ...prev, odysseyPrompt }));
+
+      // Connect to Odyssey and start streaming
+      setGenerationStatus('Connecting to Odyssey...');
+      const mediaStream = await odyssey.connect();
+      if (odysseyVideoRef.current) {
+        odysseyVideoRef.current.srcObject = mediaStream;
+      }
+
+      setGenerationStatus('Starting world stream...');
+      await odyssey.startStream(odysseyPrompt, file);
+      setAppState('STREAMING');
+      setGenerationStatus('');
+      setActiveTab('odyssey');
+    } catch (err) {
+      console.error('Default world failed:', err);
+      alert(`Default world failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setAppState('IDLE');
+      setGenerationStatus('');
+      setActiveTab('webcam');
+    }
+  }, [odyssey]);
+
   const handleImagify = useCallback(async () => {
     const d = drawingRef.current;
     d.finalizeCurrentStroke();
@@ -654,6 +701,15 @@ export default function App() {
               </button>
               <button className="done-btn imagify-btn" onClick={handleImagify}>
                 Imagify
+              </button>
+            </div>
+          )}
+
+          {/* Default World button — visible in IDLE state */}
+          {appState === 'IDLE' && (
+            <div className="done-btn-row">
+              <button className="done-btn" onClick={handleDefaultWorld}>
+                Default World
               </button>
             </div>
           )}

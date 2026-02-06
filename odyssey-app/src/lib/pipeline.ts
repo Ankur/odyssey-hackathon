@@ -2,6 +2,7 @@ import {
   PHOTOREALISTIC_IMAGE_PROMPT,
   SKETCH_ANALYSIS_PROMPT,
   buildOdysseyPromptMessage,
+  buildImageAnalysisOdysseyMessage,
 } from '../prompts/pipelinePrompts';
 
 /**
@@ -156,6 +157,47 @@ export async function generateOdysseyPrompt(
         {
           role: 'user',
           content: buildOdysseyPromptMessage(sketchAnalysis),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Claude API error: ${response.status} - ${err}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+/**
+ * Analyze a photorealistic image directly and generate an Odyssey prompt.
+ * Single Claude call — skips sketch analysis and image generation steps.
+ */
+export async function analyzeImageForOdyssey(
+  imageDataUrl: string,
+): Promise<string> {
+  const response = await fetch(`${GATEWAY_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: GATEWAY_HEADERS,
+    body: JSON.stringify({
+      model: 'anthropic/claude-sonnet-4.5',
+      max_tokens: 256,
+      reasoning: { effort: 'low' },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: imageDataUrl },
+            },
+            {
+              type: 'text',
+              text: buildImageAnalysisOdysseyMessage(),
+            },
+          ],
         },
       ],
     }),

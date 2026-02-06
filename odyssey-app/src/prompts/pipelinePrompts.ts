@@ -34,3 +34,13 @@ A photorealistic image has been generated from a hand-drawn sketch. Here is the 
 
 Now write an optimized Odyssey-2 Pro prompt to bring this scene to life as an interactive video. The prompt should describe the scene in a way that creates gentle, natural motion and atmosphere — things like wind, light shifts, ambient movement, etc.`;
 }
+
+export function buildImageAnalysisOdysseyMessage(): string {
+  return `${ODYSSEY_PROMPT_GUIDELINES}
+
+You are being shown a photorealistic image. Analyze the image carefully — identify the subject, environment, lighting, mood, composition, and all visual details.
+
+Then write an optimized Odyssey-2 Pro prompt to bring this scene to life as an interactive video. The prompt should describe the scene in a way that creates gentle, natural motion and atmosphere — things like wind, water movement, light shifts, ambient movement, etc.
+
+Output ONLY the Odyssey prompt, nothing else.`;
+}
