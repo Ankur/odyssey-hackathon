@@ -17,6 +17,7 @@ import { EDIT_SEED_IMAGE_DATA_URL } from './assets/editSeedImage';
 import {
   getIndexTipPosition,
   isIndexFingerExtended,
+  isPinching,
   INDEX_TIP,
 } from './lib/handUtils';
 import { SparkleSystem } from './lib/sparkle';
@@ -155,6 +156,8 @@ export default function App() {
   // Hover-based color selection
   const checkHoverColorSelection = useCallback(
     (landmarks: import('@mediapipe/tasks-vision').NormalizedLandmark[]) => {
+      if (!isPinching(landmarks)) return;
+
       const now = Date.now();
       if (now - lastColorHoverTimeRef.current < COLOR_HOVER_COOLDOWN_MS) return;
 

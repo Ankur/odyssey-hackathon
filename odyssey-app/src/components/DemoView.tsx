@@ -8,6 +8,7 @@ import { exportCanvasAsDataUrl } from '../lib/canvasUtils';
 import {
   getIndexTipPosition,
   isIndexFingerExtended,
+  isPinching,
   INDEX_TIP,
 } from '../lib/handUtils';
 import { SparkleSystem } from '../lib/sparkle';
@@ -143,6 +144,8 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
   // Hover-based color selection
   const checkHoverColorSelection = useCallback(
     (landmarks: import('@mediapipe/tasks-vision').NormalizedLandmark[]) => {
+      if (!isPinching(landmarks)) return;
+
       const now = Date.now();
       if (now - lastColorHoverTimeRef.current < COLOR_HOVER_COOLDOWN_MS) return;
 
