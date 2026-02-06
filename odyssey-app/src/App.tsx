@@ -4,7 +4,12 @@ import { COLOR_HOVER_COOLDOWN_MS } from './constants';
 import { useHandTracking } from './hooks/useHandTracking';
 import { useDrawing } from './hooks/useDrawing';
 import { useOdysseyClient } from './hooks/useOdysseyClient';
-import { runPipeline } from './lib/pipeline';
+import {
+  runPipeline,
+  analyzeSketchAndGeneratePrompt,
+  generatePhotorealisticImage,
+  generateOdysseyPrompt,
+} from './lib/pipeline';
 import { analyzeEditChanges } from './lib/editPipeline';
 import { exportCanvasAsDataUrl, drawPulseAnimation } from './lib/canvasUtils';
 import { EDIT_SEED_IMAGE_DATA_URL } from './assets/editSeedImage';
@@ -356,6 +361,57 @@ export default function App() {
     }
   }, [odyssey]);
 
+  const handleImagify = useCallback(async () => {
+    const d = drawingRef.current;
+    d.finalizeCurrentStroke();
+
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+
+    const allStrokes = d.getAllStrokes();
+    if (allStrokes.length === 0) return;
+
+    const sketchDataUrl = exportCanvasAsDataUrl(allStrokes, canvas.width, canvas.height);
+
+    setPipelineResults({ ...EMPTY_PIPELINE_RESULTS, sketchDataUrl });
+    setActiveTab('pipeline');
+    setAppState('GENERATING');
+    setGenerationStatus('Imagifying sketch...');
+
+    try {
+      await runPipeline(sketchDataUrl, setGenerationStatus, (progress) => {
+        setPipelineResults((prev) => ({
+          ...prev,
+          ...(progress.imagePrompt !== undefined && { imagePrompt: progress.imagePrompt }),
+          ...(progress.imageDataUrl !== undefined && { imageDataUrl: progress.imageDataUrl }),
+          ...(progress.odysseyPrompt !== undefined && { odysseyPrompt: progress.odysseyPrompt }),
+        }));
+      });
+    } catch (err) {
+      console.error('Imagify failed:', err);
+      alert(`Imagify failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setAppState('PAUSED');
+      setGenerationStatus('');
+    }
+  }, [setActiveTab]);
+
+  // Unload drawing to pipeline tab without running anything
+  const handleUnloadDrawing = useCallback(() => {
+    const d = drawingRef.current;
+    d.finalizeCurrentStroke();
+
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+
+    const allStrokes = d.getAllStrokes();
+    if (allStrokes.length === 0) return;
+
+    const sketchDataUrl = exportCanvasAsDataUrl(allStrokes, canvas.width, canvas.height);
+    setPipelineResults({ ...EMPTY_PIPELINE_RESULTS, sketchDataUrl });
+    setActiveTab('pipeline');
+  }, [setActiveTab]);
+
   const handleInteract = useCallback(
     async (prompt: string) => {
       try {
@@ -397,6 +453,56 @@ export default function App() {
     setGenerationStatus('');
     setActiveTab('webcam');
   }, []);
+
+  // Individual pipeline step handlers for manual triggering from PipelineView
+  const handleRunAnalysis = useCallback(async () => {
+    const sketchUrl = pipelineResults.sketchDataUrl;
+    if (!sketchUrl) return;
+    setGenerationStatus('Analyzing sketch with Claude...');
+    setAppState('GENERATING');
+    try {
+      const imagePrompt = await analyzeSketchAndGeneratePrompt(sketchUrl);
+      setPipelineResults((prev) => ({ ...prev, imagePrompt }));
+    } catch (err) {
+      alert(`Analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setGenerationStatus('');
+      setAppState('PAUSED');
+    }
+  }, [pipelineResults.sketchDataUrl]);
+
+  const handleRunImageGen = useCallback(async () => {
+    const sketchUrl = pipelineResults.sketchDataUrl;
+    const prompt = pipelineResults.imagePrompt;
+    if (!sketchUrl || !prompt) return;
+    setGenerationStatus('Generating photorealistic image...');
+    setAppState('GENERATING');
+    try {
+      const result = await generatePhotorealisticImage(sketchUrl, prompt);
+      setPipelineResults((prev) => ({ ...prev, imageDataUrl: result.dataUrl }));
+    } catch (err) {
+      alert(`Image generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setGenerationStatus('');
+      setAppState('PAUSED');
+    }
+  }, [pipelineResults.sketchDataUrl, pipelineResults.imagePrompt]);
+
+  const handleRunOdysseyPrompt = useCallback(async () => {
+    const prompt = pipelineResults.imagePrompt;
+    if (!prompt) return;
+    setGenerationStatus('Optimizing Odyssey prompt...');
+    setAppState('GENERATING');
+    try {
+      const odysseyPrompt = await generateOdysseyPrompt(prompt);
+      setPipelineResults((prev) => ({ ...prev, odysseyPrompt }));
+    } catch (err) {
+      alert(`Prompt generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setGenerationStatus('');
+      setAppState('PAUSED');
+    }
+  }, [pipelineResults.imagePrompt]);
 
   const handleEditAnalyze = useCallback(async (beforeUrl: string, afterUrl: string) => {
     setEditPrompt(null);
@@ -469,6 +575,23 @@ export default function App() {
     }
   }, [activeTab, editBeforeImage, captureBeforeImage]);
 
+  // Auto-load saved sketch into pipeline when pipeline tab is opened
+  useEffect(() => {
+    if (activeTab !== 'pipeline' || pipelineResults.sketchDataUrl) return;
+
+    fetch('/api/load-sketch')
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((data) => {
+        if (!data?.strokes?.length) return;
+        const dataUrl = exportCanvasAsDataUrl(data.strokes, data.width, data.height);
+        setPipelineResults((prev) => ({ ...prev, sketchDataUrl: dataUrl }));
+      })
+      .catch(() => {});
+  }, [activeTab, pipelineResults.sketchDataUrl]);
+
   const canStartEditing = true;
 
   // Save current sketch strokes to disk
@@ -539,9 +662,14 @@ export default function App() {
 
           {/* Done button — top right */}
           {(appState === 'DRAWING' || appState === 'PAUSED') && (
-            <button className="done-btn" onClick={handleDone}>
-              Done
-            </button>
+            <div className="done-btn-row">
+              <button className="done-btn" onClick={handleDone}>
+                Done
+              </button>
+              <button className="done-btn imagify-btn" onClick={handleImagify}>
+                Imagify
+              </button>
+            </div>
           )}
 
           {/* Webcam + drawing canvas */}
@@ -561,6 +689,7 @@ export default function App() {
             onUndo={drawing.undo}
             onSaveSketch={handleSaveSketch}
             onLoadSketch={handleLoadSketch}
+            onUnloadDrawing={handleUnloadDrawing}
             onStartEditing={handleStartEditing}
             canStartEditing={canStartEditing}
             onToggleCamera={handleToggleCamera}
@@ -575,6 +704,9 @@ export default function App() {
             generationStatus={generationStatus}
             results={pipelineResults}
             onCancel={handleCancelGeneration}
+            onRunAnalysis={handleRunAnalysis}
+            onRunImageGen={handleRunImageGen}
+            onRunOdysseyPrompt={handleRunOdysseyPrompt}
           />
         </div>
 

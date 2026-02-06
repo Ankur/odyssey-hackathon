@@ -7,6 +7,7 @@ interface StatusBarProps {
   onUndo: () => void;
   onSaveSketch: () => void;
   onLoadSketch: () => void;
+  onUnloadDrawing: () => void;
   onStartEditing: () => void;
   canStartEditing: boolean;
   onToggleCamera: () => void;
@@ -28,6 +29,7 @@ export function StatusBar({
   onUndo,
   onSaveSketch,
   onLoadSketch,
+  onUnloadDrawing,
   onStartEditing,
   canStartEditing,
   onToggleCamera,
@@ -60,6 +62,9 @@ export function StatusBar({
             title="Capture the current scene and switch to the Edit tab"
           >
             Start Editing
+          </button>
+          <button className="control-btn" onClick={onUnloadDrawing} title="Send drawing to pipeline tab">
+            Unload
           </button>
           <button className="control-btn" onClick={onLoadSketch} title="Load saved sketch">
             Load

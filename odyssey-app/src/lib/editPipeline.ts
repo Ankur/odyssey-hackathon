@@ -22,6 +22,7 @@ export async function analyzeEditChanges(
     body: JSON.stringify({
       model: 'openai/gpt-5-mini',
       max_tokens: 256,
+      reasoning: { effort: 'low' },
       messages: [
         {
           role: 'system',
