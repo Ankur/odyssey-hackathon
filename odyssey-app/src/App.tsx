@@ -342,6 +342,41 @@ export default function App() {
     }
   }, [odyssey]);
 
+  const handleImagify = useCallback(async () => {
+    const d = drawingRef.current;
+    d.finalizeCurrentStroke();
+
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+
+    const allStrokes = d.getAllStrokes();
+    if (allStrokes.length === 0) return;
+
+    const sketchDataUrl = exportCanvasAsDataUrl(allStrokes, canvas.width, canvas.height);
+
+    setPipelineResults({ ...EMPTY_PIPELINE_RESULTS, sketchDataUrl });
+    setActiveTab('pipeline');
+    setAppState('GENERATING');
+    setGenerationStatus('Imagifying sketch...');
+
+    try {
+      await runPipeline(sketchDataUrl, setGenerationStatus, (progress) => {
+        setPipelineResults((prev) => ({
+          ...prev,
+          ...(progress.imagePrompt !== undefined && { imagePrompt: progress.imagePrompt }),
+          ...(progress.imageDataUrl !== undefined && { imageDataUrl: progress.imageDataUrl }),
+          ...(progress.odysseyPrompt !== undefined && { odysseyPrompt: progress.odysseyPrompt }),
+        }));
+      });
+    } catch (err) {
+      console.error('Imagify failed:', err);
+      alert(`Imagify failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setAppState('PAUSED');
+      setGenerationStatus('');
+    }
+  }, [setActiveTab]);
+
   const handleInteract = useCallback(
     async (prompt: string) => {
       try {
@@ -455,6 +490,23 @@ export default function App() {
     }
   }, [activeTab, editBeforeImage, captureBeforeImage]);
 
+  // Auto-load saved sketch into pipeline when pipeline tab is opened
+  useEffect(() => {
+    if (activeTab !== 'pipeline' || pipelineResults.sketchDataUrl) return;
+
+    fetch('/api/load-sketch')
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((data) => {
+        if (!data?.strokes?.length) return;
+        const dataUrl = exportCanvasAsDataUrl(data.strokes, data.width, data.height);
+        setPipelineResults((prev) => ({ ...prev, sketchDataUrl: dataUrl }));
+      })
+      .catch(() => {});
+  }, [activeTab, pipelineResults.sketchDataUrl]);
+
   const canStartEditing = true;
 
   // Save current sketch strokes to disk
@@ -525,9 +577,14 @@ export default function App() {
 
           {/* Done button — top right */}
           {(appState === 'DRAWING' || appState === 'PAUSED') && (
-            <button className="done-btn" onClick={handleDone}>
-              Done
-            </button>
+            <div className="done-btn-row">
+              <button className="done-btn" onClick={handleDone}>
+                Done
+              </button>
+              <button className="done-btn imagify-btn" onClick={handleImagify}>
+                Imagify
+              </button>
+            </div>
           )}
 
           {/* Webcam + drawing canvas */}
