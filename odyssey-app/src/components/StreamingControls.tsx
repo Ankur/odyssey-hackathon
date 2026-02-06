@@ -4,12 +4,14 @@ interface StreamingControlsProps {
   onInteract: (prompt: string) => void;
   onEndStream: () => void;
   onNewDrawing: () => void;
+  onEdit?: () => void;
   odysseyStatus: string;
 }
 
 export function StreamingControls({
   onInteract,
   onNewDrawing,
+  onEdit,
   odysseyStatus,
 }: StreamingControlsProps) {
   const [prompt, setPrompt] = useState('');
@@ -25,8 +27,13 @@ export function StreamingControls({
   return (
     <>
       <div className="streaming-controls">
-        <div className="streaming-status">
-          Status: {odysseyStatus}
+        <div className="streaming-status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Status: {odysseyStatus}</span>
+          {onEdit && (
+            <button className="control-btn primary" onClick={onEdit} style={{ padding: '4px 16px', fontSize: 13 }}>
+              Edit
+            </button>
+          )}
         </div>
         <form onSubmit={handleSubmit} className="streaming-form">
           <input

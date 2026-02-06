@@ -11,7 +11,6 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'webcam', label: 'Draw' },
   { id: 'pipeline', label: 'Pipeline' },
   { id: 'odyssey', label: 'Odyssey' },
-  { id: 'edit', label: 'Edit' },
 ];
 
 export function TabBar({ activeTab, onTabChange, appState, demoPhase }: TabBarProps) {

@@ -75,15 +75,11 @@ export default function App() {
 
   // Odyssey edit state
   const odysseyEditDrawCanvasRef = useRef<HTMLCanvasElement>(null);
-  const odysseyEditLandmarkCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isOdysseyEditing, setIsOdysseyEditing] = useState(false);
-  const isOdysseyEditingRef = useRef(false);
-  isOdysseyEditingRef.current = isOdysseyEditing;
-  const [isOdysseyEditDrawing, setIsOdysseyEditDrawing] = useState(false);
-  const isOdysseyEditDrawingRef = useRef(false);
-  isOdysseyEditDrawingRef.current = isOdysseyEditDrawing;
   const [odysseyEditBeforeImage, setOdysseyEditBeforeImage] = useState<string | null>(null);
   const [isOdysseyReImagining, setIsOdysseyReImagining] = useState(false);
+  const odysseyEditMouseRef = useRef({ drawing: false, lastX: 0, lastY: 0 });
+  const odysseyEditStrokePointsRef = useRef<{ x: number; y: number }[]>([]);
 
   // Webcam state
   const webcamStreamRef = useRef<MediaStream | null>(null);
@@ -176,10 +172,6 @@ export default function App() {
           odysseyEditDrawCanvasRef.current.width = video.videoWidth;
           odysseyEditDrawCanvasRef.current.height = video.videoHeight;
         }
-        if (odysseyEditLandmarkCanvasRef.current) {
-          odysseyEditLandmarkCanvasRef.current.width = video.videoWidth;
-          odysseyEditLandmarkCanvasRef.current.height = video.videoHeight;
-        }
       }
     }
   }, [isOdysseyEditing]);
@@ -244,55 +236,6 @@ export default function App() {
       const state = appStateRef.current;
       const sparkle = sparkleRef.current;
 
-      // Odyssey edit mode: render cursor/drawing on the Odyssey edit canvases
-      if (isOdysseyEditingRef.current) {
-        const lmCanvas = odysseyEditLandmarkCanvasRef.current;
-        const d = odysseyEditDrawingRef.current;
-        const isActive = isOdysseyEditDrawingRef.current;
-
-        if (lmCanvas) {
-          const ctx = lmCanvas.getContext('2d');
-          if (ctx) {
-            ctx.clearRect(0, 0, lmCanvas.width, lmCanvas.height);
-
-            if (result.landmarks) {
-              const landmarks = result.landmarks;
-              const indexTip = getIndexTipPosition(landmarks, lmCanvas.width, lmCanvas.height);
-              const extended = isIndexFingerExtended(landmarks);
-
-              sparkle.emit(indexTip.x, indexTip.y);
-
-              if (extended && isActive) {
-                ctx.beginPath();
-                ctx.arc(indexTip.x, indexTip.y, d.brushSize / 2 + 4, 0, Math.PI * 2);
-                ctx.strokeStyle = d.color;
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.5;
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-              }
-
-              checkHoverColorSelection(landmarks);
-
-              if (isActive) {
-                d.processFrame(landmarks);
-              }
-
-              sparkle.drawCursor(ctx, indexTip.x, indexTip.y, d.color, extended);
-            } else if (isActive) {
-              d.processFrame(null);
-            }
-
-            sparkle.update();
-            sparkle.draw(ctx, d.color);
-          }
-        }
-
-        drawLoopRef.current = requestAnimationFrame(loop);
-        return;
-      }
-
-      // Normal draw tab mode
       const lmCanvas = landmarkCanvasRef.current;
       const d = drawingRef.current;
 
@@ -381,17 +324,6 @@ export default function App() {
         return;
       }
       e.preventDefault();
-
-      // Odyssey edit mode spacebar toggle
-      if (isOdysseyEditingRef.current) {
-        if (isOdysseyEditDrawingRef.current) {
-          odysseyEditDrawingRef.current.finalizeCurrentStroke();
-          setIsOdysseyEditDrawing(false);
-        } else {
-          setIsOdysseyEditDrawing(true);
-        }
-        return;
-      }
 
       const state = appStateRef.current;
       if (state === 'IDLE') {
@@ -626,13 +558,11 @@ export default function App() {
     setOdysseyEditBeforeImage(captureCanvas.toDataURL('image/png'));
 
     odysseyEditDrawing.clear();
-    setIsOdysseyEditDrawing(false);
     setIsOdysseyEditing(true);
   }, [odysseyEditDrawing]);
 
   const handleOdysseyCancelEdit = useCallback(() => {
     odysseyEditDrawing.clear();
-    setIsOdysseyEditDrawing(false);
     setIsOdysseyEditing(false);
   }, [odysseyEditDrawing]);
 
@@ -708,7 +638,6 @@ export default function App() {
       await odyssey.startStream(result.odysseyPrompt, result.image);
 
       odysseyEditDrawing.clear();
-      setIsOdysseyEditDrawing(false);
       setIsOdysseyEditing(false);
       setGenerationStatus('');
     } catch (err) {
@@ -948,9 +877,6 @@ export default function App() {
               <button className="done-btn" onClick={handleDone}>
                 Done
               </button>
-              <button className="done-btn imagify-btn" onClick={handleImagify}>
-                Imagify
-              </button>
             </div>
           )}
 
@@ -1002,10 +928,7 @@ export default function App() {
         </div>
 
         {/* Odyssey tab */}
-        <div className="tab-pane odyssey-tab" style={{
-          display: activeTab === 'odyssey' ? 'block' : 'none',
-          ...(isOdysseyEditing ? { background: '#0a0a0a' } : {}),
-        }}>
+        <div className="tab-pane odyssey-tab" style={{ display: activeTab === 'odyssey' ? 'block' : 'none' }}>
           {isOdysseyEditing && (
             <ColorPalette
               selectedColor={odysseyEditDrawing.color}
@@ -1016,7 +939,6 @@ export default function App() {
           )}
           <div className="odyssey-pane-content">
             <div className="odyssey-frame-container">
-              {/* Video masked to frame interior */}
               <video
                 ref={odysseyVideoRef}
                 autoPlay
@@ -1025,10 +947,8 @@ export default function App() {
                 className="odyssey-video"
                 style={{
                   display: showOdysseyStream ? 'block' : 'none',
-                  ...(isOdysseyEditing ? {} : {
-                    maskImage: `url(${frameMask})`,
-                    WebkitMaskImage: `url(${frameMask})`,
-                  }),
+                  maskImage: `url(${frameMask})`,
+                  WebkitMaskImage: `url(${frameMask})`,
                 }}
               />
 
@@ -1038,49 +958,115 @@ export default function App() {
                 </div>
               )}
 
-              {/* Frame overlay — hidden during editing */}
-              {!isOdysseyEditing && (
-                <img src={frameImage} className="odyssey-frame-overlay" alt="" />
-              )}
+              <img src={frameImage} className="odyssey-frame-overlay" alt="" />
 
-              {/* Edit canvases overlaid on video */}
+              {/* Edit canvas overlaid on video — draws with mouse */}
               {isOdysseyEditing && (
-                <>
-                  <canvas ref={odysseyEditDrawCanvasRef} className="draw-canvas" />
-                  <canvas ref={odysseyEditLandmarkCanvasRef} className="landmark-canvas" />
-                </>
+                <canvas
+                  ref={odysseyEditDrawCanvasRef}
+                  className="draw-canvas"
+                  style={{ pointerEvents: 'auto', cursor: 'crosshair', zIndex: 2 }}
+                  onMouseDown={(e) => {
+                    const canvas = odysseyEditDrawCanvasRef.current;
+                    if (!canvas || isOdysseyReImagining) return;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                    odysseyEditMouseRef.current = { drawing: true, lastX: x, lastY: y };
+                    // Start a new stroke
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.strokeStyle = odysseyEditDrawingRef.current.color;
+                      ctx.lineWidth = odysseyEditDrawingRef.current.brushSize;
+                      ctx.lineCap = 'round';
+                      ctx.lineJoin = 'round';
+                      ctx.beginPath();
+                      ctx.moveTo(x, y);
+                    }
+                    odysseyEditStrokePointsRef.current = [{ x, y }];
+                  }}
+                  onMouseMove={(e) => {
+                    const mouse = odysseyEditMouseRef.current;
+                    const canvas = odysseyEditDrawCanvasRef.current;
+                    if (!mouse.drawing || !canvas) return;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.strokeStyle = odysseyEditDrawingRef.current.color;
+                      ctx.lineWidth = odysseyEditDrawingRef.current.brushSize;
+                      ctx.lineCap = 'round';
+                      ctx.lineJoin = 'round';
+                      ctx.lineTo(x, y);
+                      ctx.stroke();
+                      ctx.beginPath();
+                      ctx.moveTo(x, y);
+                    }
+                    mouse.lastX = x;
+                    mouse.lastY = y;
+                    odysseyEditStrokePointsRef.current.push({ x, y });
+                  }}
+                  onMouseUp={() => {
+                    const mouse = odysseyEditMouseRef.current;
+                    if (!mouse.drawing) return;
+                    mouse.drawing = false;
+                    const points = odysseyEditStrokePointsRef.current;
+                    if (points.length >= 2) {
+                      const existing = odysseyEditDrawingRef.current.getAllStrokes();
+                      odysseyEditDrawing.loadStrokes(
+                        [...existing, {
+                          points: [...points],
+                          color: odysseyEditDrawingRef.current.color,
+                          width: odysseyEditDrawingRef.current.brushSize,
+                        }],
+                        odysseyEditDrawCanvasRef.current?.width ?? 1,
+                        odysseyEditDrawCanvasRef.current?.height ?? 1,
+                      );
+                    }
+                    odysseyEditStrokePointsRef.current = [];
+                  }}
+                  onMouseLeave={() => {
+                    const mouse = odysseyEditMouseRef.current;
+                    if (!mouse.drawing) return;
+                    mouse.drawing = false;
+                    const points = odysseyEditStrokePointsRef.current;
+                    if (points.length >= 2) {
+                      const existing = odysseyEditDrawingRef.current.getAllStrokes();
+                      odysseyEditDrawing.loadStrokes(
+                        [...existing, {
+                          points: [...points],
+                          color: odysseyEditDrawingRef.current.color,
+                          width: odysseyEditDrawingRef.current.brushSize,
+                        }],
+                        odysseyEditDrawCanvasRef.current?.width ?? 1,
+                        odysseyEditDrawCanvasRef.current?.height ?? 1,
+                      );
+                    }
+                    odysseyEditStrokePointsRef.current = [];
+                  }}
+                />
               )}
             </div>
 
             {/* Streaming controls */}
             {appState === 'STREAMING' && !isOdysseyEditing && (
-              <>
-                <StreamingControls
-                  onInteract={handleInteract}
-                  onEndStream={handleEndStream}
-                  onNewDrawing={handleNewDrawing}
-                  odysseyStatus={odyssey.status}
-                />
-                <button className="control-btn primary demo-edit-btn" onClick={handleOdysseyEdit} style={{ marginTop: 12 }}>
-                  Edit
-                </button>
-              </>
+              <StreamingControls
+                onInteract={handleInteract}
+                onEndStream={handleEndStream}
+                onNewDrawing={handleNewDrawing}
+                onEdit={handleOdysseyEdit}
+                odysseyStatus={odyssey.status}
+              />
             )}
 
             {/* Edit controls */}
             {isOdysseyEditing && (
-              <div className="demo-bottom-bar" style={{
-                background: 'transparent',
-                backdropFilter: 'none',
-                WebkitBackdropFilter: 'none',
-                borderTop: 'none',
-              }}>
-                <p className="demo-status-hint">
+              <div className="streaming-controls">
+                <p className="demo-status-hint" style={{ marginBottom: 8 }}>
                   {isOdysseyReImagining
                     ? (generationStatus || 'Re-imagining...')
-                    : !isOdysseyEditDrawing
-                      ? 'Press SPACE to draw edits'
-                      : 'Drawing edits — press SPACE to pause'}
+                    : 'Draw edits on the stream with your mouse'}
                 </p>
                 <div className="demo-reimagine-row">
                   <button className="control-btn" onClick={handleOdysseyCancelEdit} disabled={isOdysseyReImagining}>
@@ -1109,16 +1095,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Edit tab */}
-        <div className="tab-pane" style={{ display: activeTab === 'edit' ? 'block' : 'none' }}>
-          <EditView
-            interactPrompt={editPrompt}
-            isAnalyzing={isAnalyzingEdit}
-            beforeImage={editBeforeImage}
-            onAnalyze={handleEditAnalyze}
-            onPromptClear={() => setEditPrompt(null)}
-          />
-        </div>
+
+
       </div>
     </div>
   );
