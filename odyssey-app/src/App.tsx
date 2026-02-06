@@ -27,6 +27,8 @@ import { TabBar } from './components/TabBar';
 import { PipelineView } from './components/PipelineView';
 import { StreamingControls } from './components/StreamingControls';
 import { EditView } from './components/EditView';
+import { DemoView } from './components/DemoView';
+import type { DemoPhase } from './components/DemoView';
 import frameImage from './assets/frame.png';
 import frameMask from './assets/frame-mask.png';
 import './App.css';
@@ -67,6 +69,9 @@ export default function App() {
   const [editPrompt, setEditPrompt] = useState<string | null>(null);
   const [isAnalyzingEdit, setIsAnalyzingEdit] = useState(false);
   const [editBeforeImage, setEditBeforeImage] = useState<string | null>(null);
+
+  // Demo tab state
+  const [demoPhase, setDemoPhase] = useState<DemoPhase>('draw');
 
   // Webcam state
   const webcamStreamRef = useRef<MediaStream | null>(null);
@@ -692,9 +697,14 @@ export default function App() {
   return (
     <div className="app">
       {/* Tab bar */}
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} appState={appState} />
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} appState={appState} demoPhase={demoPhase} />
 
       <div className="tab-content">
+        {/* Demo tab */}
+        <div className="tab-pane" style={{ display: activeTab === 'demo' ? 'block' : 'none' }}>
+          <DemoView isActive={activeTab === 'demo'} onPhaseChange={setDemoPhase} />
+        </div>
+
         {/* Draw tab */}
         <div className="tab-pane" style={{ display: activeTab === 'webcam' ? 'block' : 'none' }}>
           {/* Color palette */}

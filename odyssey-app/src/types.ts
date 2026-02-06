@@ -1,6 +1,6 @@
 export type AppState = 'IDLE' | 'DRAWING' | 'PAUSED' | 'GENERATING' | 'STREAMING';
 
-export type TabId = 'webcam' | 'pipeline' | 'odyssey' | 'edit';
+export type TabId = 'webcam' | 'pipeline' | 'odyssey' | 'edit' | 'demo';
 
 export interface PipelineResults {
   sketchDataUrl: string | null;
