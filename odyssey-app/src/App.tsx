@@ -1,24 +1,13 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { AppState, TabId, PipelineResults } from './types';
-import { COLOR_HOVER_COOLDOWN_MS, EXPORT_WIDTH, EXPORT_HEIGHT } from './constants';
+import { COLOR_HOVER_COOLDOWN_MS } from './constants';
 import { useHandTracking } from './hooks/useHandTracking';
 import { useDrawing } from './hooks/useDrawing';
 import { useOdysseyClient } from './hooks/useOdysseyClient';
 import { runPipeline } from './lib/pipeline';
 import { analyzeEditChanges } from './lib/editPipeline';
 import { exportCanvasAsDataUrl } from './lib/canvasUtils';
-import { drawDummyScene } from './lib/dummyScene';
-
-function generateEditSeedImage(): string | null {
-  if (typeof document === 'undefined') return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = EXPORT_WIDTH;
-  canvas.height = EXPORT_HEIGHT;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-  drawDummyScene(ctx, EXPORT_WIDTH, EXPORT_HEIGHT);
-  return canvas.toDataURL('image/png');
-}
+import { EDIT_SEED_IMAGE_DATA_URL } from './assets/editSeedImage';
 import {
   getIndexTipPosition,
   isIndexFingerExtended,
@@ -68,7 +57,7 @@ export default function App() {
   // Edit tab state
   const [editPrompt, setEditPrompt] = useState<string | null>(null);
   const [isAnalyzingEdit, setIsAnalyzingEdit] = useState(false);
-  const [editBeforeImage, setEditBeforeImage] = useState<string | null>(() => generateEditSeedImage());
+  const [editBeforeImage, setEditBeforeImage] = useState<string | null>(null);
 
   // Webcam state
   const webcamStreamRef = useRef<MediaStream | null>(null);
@@ -139,7 +128,6 @@ export default function App() {
       landmarkCanvasRef.current.width = w;
       landmarkCanvasRef.current.height = h;
     }
-
   }, []);
 
   // Start hand detection when ready
@@ -409,17 +397,45 @@ export default function App() {
     }
   }, []);
 
+  const captureBeforeImage = useCallback((): string | null => {
+    if (pipelineResults.imageDataUrl) return pipelineResults.imageDataUrl;
+    if (pipelineResults.sketchDataUrl) return pipelineResults.sketchDataUrl;
+
+    const video = videoRef.current;
+    const drawCanvas = drawCanvasRef.current;
+
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      const captureCanvas = document.createElement('canvas');
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+      const ctx = captureCanvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+        if (drawCanvas) {
+          ctx.drawImage(drawCanvas, 0, 0, captureCanvas.width, captureCanvas.height);
+        }
+        return captureCanvas.toDataURL('image/png');
+      }
+    }
+
+    if (drawCanvas && drawCanvas.width > 0 && drawCanvas.height > 0) {
+      return drawCanvas.toDataURL('image/png');
+    }
+
+    return EDIT_SEED_IMAGE_DATA_URL;
+  }, [pipelineResults]);
+
   const handleStartEditing = useCallback(() => {
-    const baseImage = generateEditSeedImage();
+    const baseImage = captureBeforeImage();
     if (!baseImage) {
-      alert('Unable to prepare the edit seed yet. Try again in a moment.');
+      alert('Unable to capture the current scene yet. Wait for the camera, sketch, or pipeline output to finish.');
       return;
     }
     setEditBeforeImage(baseImage);
     setEditPrompt(null);
     setIsAnalyzingEdit(false);
     setActiveTab('edit');
-  }, [setActiveTab]);
+  }, [captureBeforeImage, setActiveTab]);
 
   const handleToggleCamera = useCallback(() => {
     if (isCameraOn) {
@@ -428,6 +444,8 @@ export default function App() {
       startWebcam();
     }
   }, [isCameraOn, startWebcam, stopWebcam]);
+
+  const canStartEditing = true;
 
   // Save current sketch strokes to disk
   const handleSaveSketch = useCallback(async () => {
@@ -520,7 +538,7 @@ export default function App() {
             onSaveSketch={handleSaveSketch}
             onLoadSketch={handleLoadSketch}
             onStartEditing={handleStartEditing}
-            canStartEditing={true}
+            canStartEditing={canStartEditing}
             onToggleCamera={handleToggleCamera}
             isCameraOn={isCameraOn}
           />
