@@ -31,6 +31,7 @@ export async function analyzeSketchAndGeneratePrompt(
     body: JSON.stringify({
       model: 'anthropic/claude-sonnet-4.5',
       max_tokens: 512,
+      reasoning: { effort: 'low' },
       messages: [
         {
           role: 'user',
@@ -150,6 +151,7 @@ export async function generateOdysseyPrompt(
     body: JSON.stringify({
       model: 'anthropic/claude-sonnet-4.5',
       max_tokens: 256,
+      reasoning: { effort: 'low' },
       messages: [
         {
           role: 'user',

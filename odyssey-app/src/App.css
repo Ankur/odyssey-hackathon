@@ -589,8 +589,8 @@
 
 .edit-view {
   position: relative;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   background: #0a0a0a;
   padding: 60px 24px 24px 80px;
   box-sizing: border-box;
@@ -606,6 +606,7 @@
 .edit-canvas-container {
   display: flex;
   flex-direction: column;
+  align-items: center;
   flex: 1;
   min-width: 0;
 }
