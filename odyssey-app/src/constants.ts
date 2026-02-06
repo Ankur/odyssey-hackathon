@@ -26,7 +26,7 @@ export const PINCH_THRESHOLD = 0.06;
 export const COLOR_HOVER_COOLDOWN_MS = 400;
 
 // How many consecutive lost-tracking frames before we break the stroke
-export const MAX_LOST_FRAMES = 3;
+export const MAX_LOST_FRAMES = 8;
 
 // Export resolution matching Odyssey landscape
 export const EXPORT_WIDTH = 1280;

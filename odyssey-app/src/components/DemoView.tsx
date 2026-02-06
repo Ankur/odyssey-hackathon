@@ -8,7 +8,6 @@ import { exportCanvasAsDataUrl } from '../lib/canvasUtils';
 import {
   getIndexTipPosition,
   isIndexFingerExtended,
-  isPinching,
   INDEX_TIP,
 } from '../lib/handUtils';
 import { SparkleSystem } from '../lib/sparkle';
@@ -144,11 +143,6 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
   // Hover-based color selection
   const checkHoverColorSelection = useCallback(
     (landmarks: import('@mediapipe/tasks-vision').NormalizedLandmark[]) => {
-      if (!isPinching(landmarks)) return;
-
-      const now = Date.now();
-      if (now - lastColorHoverTimeRef.current < COLOR_HOVER_COOLDOWN_MS) return;
-
       const video = videoRef.current;
       if (!video) return;
 
@@ -157,24 +151,40 @@ export function DemoView({ isActive, onPhaseChange }: DemoViewProps) {
       const tipX = videoRect.left + (1 - tip.x) * videoRect.width;
       const tipY = videoRect.top + tip.y * videoRect.height;
 
+      const now = Date.now();
+      const cooldownOk = now - lastColorHoverTimeRef.current >= COLOR_HOVER_COOLDOWN_MS;
+
       const swatches = document.querySelectorAll('.demo-view .swatch');
+      let hoveredSwatch: Element | null = null;
+
       for (const swatch of swatches) {
         const rect = swatch.getBoundingClientRect();
-        const pad = 8;
+        const padX = 40;
+        const padY = 8;
         if (
-          tipX >= rect.left - pad &&
-          tipX <= rect.right + pad &&
-          tipY >= rect.top - pad &&
-          tipY <= rect.bottom + pad
+          tipX >= rect.left - padX &&
+          tipX <= rect.right + padX &&
+          tipY >= rect.top - padY &&
+          tipY <= rect.bottom + padY
         ) {
-          const color = (swatch as HTMLElement).dataset.color;
-          if (color && color !== drawingRef.current.color) {
-            drawingRef.current.setColor(color);
-            lastColorHoverTimeRef.current = now;
-            swatch.classList.add('hover-selected');
-            setTimeout(() => swatch.classList.remove('hover-selected'), 300);
-          }
+          hoveredSwatch = swatch;
           break;
+        }
+      }
+
+      // Update finger-hover visual on all swatches
+      for (const swatch of swatches) {
+        swatch.classList.toggle('finger-hover', swatch === hoveredSwatch);
+      }
+
+      // Select color on hover
+      if (hoveredSwatch && cooldownOk) {
+        const color = (hoveredSwatch as HTMLElement).dataset.color;
+        if (color && color !== drawingRef.current.color) {
+          drawingRef.current.setColor(color);
+          lastColorHoverTimeRef.current = now;
+          hoveredSwatch.classList.add('hover-selected');
+          setTimeout(() => hoveredSwatch!.classList.remove('hover-selected'), 300);
         }
       }
     },

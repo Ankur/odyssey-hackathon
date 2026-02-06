@@ -292,7 +292,7 @@
 
 .color-palette {
   position: absolute;
-  left: 16px;
+  right: 110px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 20;
@@ -300,11 +300,11 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(12px);
   padding: 12px 8px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .palette-label {
@@ -318,12 +318,12 @@
 .palette-swatches {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
 }
 
 .swatch {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
@@ -331,8 +331,9 @@
   padding: 0;
 }
 
-.swatch:hover {
-  transform: scale(1.15);
+.swatch:hover,
+.swatch.finger-hover {
+  transform: scale(1.25);
   border-color: rgba(255, 255, 255, 0.5);
 }
 

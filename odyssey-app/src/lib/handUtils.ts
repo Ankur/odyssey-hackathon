@@ -58,8 +58,9 @@ export function getIndexTipPosition(
 export function isIndexFingerExtended(landmarks: NormalizedLandmark[]): boolean {
   const tip = landmarks[INDEX_TIP];
   const pip = landmarks[INDEX_PIP];
-  // In normalized coords, lower y = higher on screen
-  return tip.y < pip.y;
+  // In normalized coords, lower y = higher on screen.
+  // Margin of 0.02 adds hysteresis to prevent flickering during fast movement.
+  return tip.y < pip.y + 0.02;
 }
 
 /**
