@@ -1,36 +1,83 @@
-# Odyssey Hackathon
+# Sketchy World
 
-Demo video (in the beginning the audio cuts off but I say "you're watching Disney Channel"): https://drive.google.com/file/d/1UgWvuha_eW7t8QQLFXiCSTuTH9y4ZNGb/view?usp=sharing
+<p align="center">
+  <img src="sketchy-world.gif" alt="Odyssey AR demo" width="600" />
+</p>
 
-An experimental playground that turns hand-drawn sketches into live Odyssey-2 Pro video streams. The app guides you from gestural drawing on a webcam feed, through prompt engineering, to photorealistic generations and interactive streaming.
+An experimental playground that turns hand-drawn sketches into live Odyssey-2 Pro video streams. Draw in mid-air using your webcam and hand tracking, then watch an AI pipeline transform your sketch into a photorealistic, interactive video world.
 
 ## How It Works
-1. **Sketch in mid-air or with a mouse** – MediaPipe hand-tracking powers the in-browser canvas, while color/brush controls hover over the selfie feed.
-2. **Run the pipeline** – The drawing is exported once you click **Done**. Claude Sonnet analyzes the sketch, NanoBanana (Gemini 2.5 image) renders a photorealistic frame, and another Claude pass crafts an Odyssey-ready prompt.
-3. **Stream with Odyssey** – The optimized prompt plus generated frame seed Odyssey-2 Pro. Streaming controls let you interact, end sessions, or start fresh sketches.
-4. **Edit mode** – Capture a before/after image, draw adjustments, and use GPT-5 mini to produce an interact prompt describing the change.
-5. **Imagify** – A quick button on the Draw tab that runs the photorealistic pipeline without starting the Odyssey stream.
 
-## Tech Stack
-- **Frontend**: React 19, TypeScript, Vite, custom hooks (`useDrawing`, `useHandTracking`, `useOdysseyClient`).
-- **AI Orchestration**: Vercel AI Gateway for Claude Sonnet, NanoBanana (Gemini 2.5 image), and GPT-5 mini calls.
-- **Streaming**: Odyssey SDK + WebRTC for interactive video.
-- **Computer Vision**: MediaPipe Tasks Vision for real-time hand landmarks.
-- **Tooling**: ESLint, TypeScript project references, custom Vite server plugin for saving sessions.
+1. **Sketch in mid-air** -- MediaPipe hand-tracking powers an in-browser canvas overlaid on your webcam feed. Pick colors and brush sizes by hovering over the palette.
+2. **Run the pipeline** -- Click **Done** to export your drawing. Claude Sonnet analyzes the sketch, Gemini generates a photorealistic frame, and another Claude pass crafts an Odyssey-ready prompt.
+3. **Stream with Odyssey** -- The generated frame + optimized prompt seed Odyssey-2 Pro. Streaming controls let you interact with the world, end sessions, or start fresh.
 
-## Development
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18+)
+- npm (comes with Node.js)
+- A webcam
+- API keys (see below)
+
+### API Keys
+
+You'll need two keys:
+
+| Key | What it's for | Where to get it |
+|-----|--------------|-----------------|
+| `VITE_ODYSSEY_API_KEY` | Odyssey-2 Pro video streaming | [Odyssey](https://odyssey.ml) |
+| `AI_GATEWAY_API_KEY` | Vercel AI Gateway (routes calls to Claude, Gemini) | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) |
+
+> **Tip:** If you run the app with `vercel dev` instead of `npm run dev`, the AI Gateway authenticates automatically via OIDC -- no `AI_GATEWAY_API_KEY` needed.
+
+### Setup
+
 ```bash
-cd odyssey-app
+# Clone the repo
+git clone https://github.com/ankur/odyssey-hackathon.git
+cd odyssey-hackathon/odyssey-app
+
+# Install dependencies
 npm install
+
+# Create your environment file
+cp .env.example .env
+```
+
+Open `odyssey-app/.env` and fill in your keys:
+
+```env
+VITE_ODYSSEY_API_KEY=ody_your_api_key_here
+AI_GATEWAY_API_KEY=your_vercel_ai_gateway_key_here
+```
+
+### Run
+
+```bash
 npm run dev
 ```
-The dev server runs on Vite (defaults to http://localhost:5173). Webcam access requires browser permission.
+
+The app starts at [http://localhost:5173](http://localhost:5173). Your browser will ask for webcam permission -- allow it to enable hand tracking.
+
+## Tech Stack
+
+- **Frontend**: React 19, TypeScript, Vite
+- **AI Orchestration**: Vercel AI Gateway (Claude Sonnet, Gemini, GPT-5 mini)
+- **Streaming**: Odyssey SDK + WebRTC
+- **Computer Vision**: MediaPipe Tasks Vision (real-time hand landmarks)
 
 ## Project Structure
-- `odyssey-app/src/components` – Canvas UI, status bar, streaming controls, edit view.
-- `odyssey-app/src/hooks` – Hand tracking, drawing, Odyssey client lifecycle.
-- `odyssey-app/src/lib` – Pipeline orchestration, edit analysis, session plugin helpers.
-- `odyssey-app/src/prompts` – Centralized LLM prompt templates.
-- `odyssey-docs` – Offline PDFs + Mintlify export for Odyssey API references.
 
-Hack on new gesture interactions, tweak prompt templates in `src/prompts`, or expand the pipeline—everything is wired for quick experimentation.
+```
+odyssey-app/
+  src/
+    components/   -- Canvas UI, status bar, streaming controls, edit view
+    hooks/        -- Hand tracking, drawing state, Odyssey client lifecycle
+    lib/          -- Pipeline orchestration, hand/canvas utils, particles
+    prompts/      -- Centralized LLM prompt templates
+    types.ts      -- Shared type definitions
+    constants.ts  -- Tunable parameters (colors, brush sizes, thresholds)
+  server/         -- Vite plugin for saving sessions and sketches
+```
